@@ -9,14 +9,14 @@ class Rope {
     this.segmentLength = length / segments;
     this.segmentSpringConstant = 1 / (this.segmentLength * this.elasticityConstant);
     this.dampingCoefficient = 0.02 / this.segmentLength; // damping for oscillations orthogonal to the rope
-    this.internalDamping = 0.01 / this.segmentLength; // damping for internal friction
+    this.internalDamping = 0.1 / this.segmentLength; // damping for internal friction
     this.segmentMass = (segments > 1) ? this.mass / (segments - 1) : 0; // ends have their own predefined masses
     this.ropeSegments = [];
     this.bodies = [end1];
     for (let i = 1; i < segments; i++) {
       this.bodies.push(new Body(...end1.pos.plus(end2.pos.minus(end1.pos).times(i / segments)).arr, this.segmentMass));
       // if (this.significantMassAtEnd2)
-      //   this.bodies[i].velocityDamping = 0.6;
+        // this.bodies[i].velocityDamping = 0.6;
       this.ropeSegments.push(new RopeSegment(this.bodies[i-1], this.bodies[i],
         this.segmentLength, this.segmentSpringConstant, this.dampingCoefficient, this.internalDamping));
     }
@@ -49,7 +49,7 @@ class Rope {
         this.bodies[i].pos = deflPts[lenArrIdx].pos.times(1 - dSegFac).plus(deflPts[lenArrIdx+1].pos.times(dSegFac));
       }
       while (lenArrIdx < deflectionPoints.length) {
-        this.ropeSegments[this.ropeSegments.length - 1].push(deflectionPoints[lenArrIdx]);
+        this.ropeSegments[this.ropeSegments.length - 1].deflectionPoints.push(deflectionPoints[lenArrIdx]);
         lenArrIdx++;
       }
     } else {
@@ -148,19 +148,23 @@ class RopeSegment {
       this.bodyA.applyForce(directionA.times(springForceMag));
       this.bodyB.applyForce(directionB.times(-springForceMag));
 
-      if (lenTot > 0 && this.deflectionPoints.length == 0) { // TODO: damping if deflection points present
-        const direction = diffTot.times(1 / lenTot);
-        const relativeVelocity = this.bodyB.velocity.minus(this.bodyA.velocity);
-        const lengthChangeRate = relativeVelocity.dot(direction);
-        
+      if (lenTot > 0) {
+        const lengthChangeRateA = -this.bodyA.velocity.dot(directionA);
+        const lengthChangeRateB = this.bodyB.velocity.dot(directionB);
+
         if (this.bodyA.mass > 0 && this.bodyB.mass > 0) {
-          const relativeParallel = direction.times(lengthChangeRate);
-          const relativePerp = relativeVelocity.minus(relativeParallel);
+          const relativeParallelA = directionA.times(lengthChangeRateA);
+          const relativeParallelB = directionB.times(lengthChangeRateB);
+          const relativePerpA = this.bodyA.velocity.times(-1).minus(relativeParallelA);
+          const relativePerpB = this.bodyB.velocity.minus(relativeParallelB);
+          const relativePerp = relativePerpA.plus(relativePerpB);
+
           const dampingForce = relativePerp.times(this.dampingCoefficient);
           this.bodyA.applyForce(dampingForce);
           this.bodyB.applyForce(dampingForce.times(-1));
         }
       
+        const lengthChangeRate = lengthChangeRateA + lengthChangeRateB;
         this.bodyA.applyForce(directionA.times(lengthChangeRate * this.internalDamping));
         this.bodyB.applyForce(directionB.times(-lengthChangeRate * this.internalDamping));
       }

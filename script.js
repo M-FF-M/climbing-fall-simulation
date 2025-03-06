@@ -14,20 +14,23 @@ const GLOBALS = {
 };
 
 function main() {
-  GLOBALS.startHeight = 3; // height above last draw
-  GLOBALS.lastDrawHeight = 5; // height of last draw
-  GLOBALS.ropeLength = GLOBALS.startHeight + GLOBALS.lastDrawHeight + 0.1;
-  GLOBALS.ropeSegmentNum = 30;
-  GLOBALS.freeFall = GLOBALS.startHeight + GLOBALS.ropeLength;
+  GLOBALS.startHeight = 7; // height of climber above ground / belay
+  GLOBALS.lastDrawHeight = 5; // height of last draw above ground / belay
+  GLOBALS.ropeLength = GLOBALS.startHeight + 0.1; // 10 cm slack
+  GLOBALS.ropeSegmentNum = 70;
+  GLOBALS.freeFall = 2 * (GLOBALS.startHeight - GLOBALS.lastDrawHeight);
   GLOBALS.fallFactor = GLOBALS.freeFall / GLOBALS.ropeLength;
-  GLOBALS.anchor = new Body(0, -GLOBALS.lastDrawHeight, 0, 0);
-  GLOBALS.deflectionPoint = new Body(0.005, 0, 0, 0);
+  GLOBALS.anchor = new Body(0, 0, 0, 0);
+  GLOBALS.deflectionPoint = new Body(0.005, GLOBALS.lastDrawHeight, 0, 0);
   GLOBALS.anchorDPointLen = GLOBALS.deflectionPoint.pos.minus(GLOBALS.anchor.pos).norm();
   GLOBALS.dPointClimLen = GLOBALS.ropeLength - GLOBALS.anchorDPointLen;
-  GLOBALS.climber = new Body(0.01 + Math.sqrt(GLOBALS.dPointClimLen * GLOBALS.dPointClimLen - GLOBALS.startHeight * GLOBALS.startHeight), GLOBALS.startHeight, 0, 70);
+  GLOBALS.climber = new Body(
+    0.01 + Math.sqrt(GLOBALS.dPointClimLen * GLOBALS.dPointClimLen - (GLOBALS.startHeight - GLOBALS.lastDrawHeight) * (GLOBALS.startHeight - GLOBALS.lastDrawHeight)),
+    GLOBALS.startHeight, 0, 70
+  );
   GLOBALS.climber.velocityDamping = 0.95; // TODO: improve
   GLOBALS.climber.velocity = new V(0, 0, 0);
-  GLOBALS.climber.mass = (GLOBALS.ropeLength * 0.062) / (GLOBALS.ropeSegmentNum - 1); // no climber at the end of the rope
+  // GLOBALS.climber.mass = (GLOBALS.ropeLength * 0.062) / (GLOBALS.ropeSegmentNum - 1); // no climber at the end of the rope
   if (GLOBALS.lastDrawHeight == 0)
     GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber);
   else
@@ -37,7 +40,7 @@ function main() {
                 + 2 * GLOBALS.climber.mass * GRAVITY_OF_EARTH * GLOBALS.fallFactor / GLOBALS.rope.elasticityConstant);
   
   const FPS = 40;
-  const snapshots = precalculatePositions(25, FPS);
+  const snapshots = precalculatePositions(8, FPS);
   GLOBALS.startingTime = (new Date()).getTime() / 1000;
   // framePerFrame(snapshots);
 
@@ -121,7 +124,7 @@ function drawRope(infoObj) {
     canvas.style.height = `${GLOBALS.canvasHeight}px`;
   }
   const XORIG = GLOBALS.canvasWidth / 2;
-  const YORIG = 200;
+  const YORIG = GLOBALS.canvasHeight - 50;
   const SCALE = 50;
 
   const ctx = canvas.getContext('2d');
@@ -130,8 +133,8 @@ function drawRope(infoObj) {
 
   for (let i = 0; i <= 20; i++) {
     ctx.beginPath();
-    ctx.moveTo(0, YORIG + 0.5 * i*SCALE - 0.5);
-    ctx.lineTo(GLOBALS.canvasWidth, YORIG + 0.5 * i*SCALE - 0.5);
+    ctx.moveTo(0, YORIG - 0.5 * i*SCALE - 0.5);
+    ctx.lineTo(GLOBALS.canvasWidth, YORIG - 0.5 * i*SCALE - 0.5);
     if (i % 2 == 0)
       ctx.strokeStyle = 'rgb(190, 190, 190)';
     else
@@ -143,7 +146,7 @@ function drawRope(infoObj) {
     ctx.fillStyle = 'black';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    ctx.fillText(`${numToStr(i * 0.5)} m`, 5, YORIG + 0.5 * i*SCALE);
+    ctx.fillText(`${numToStr(i * 0.5)} m`, 5, YORIG - 0.5 * i*SCALE);
   }
   ctx.font = '0.75em Arial';
   ctx.fillStyle = 'black';
