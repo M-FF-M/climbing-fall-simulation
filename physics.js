@@ -1,4 +1,9 @@
 
+const PHYSICS_WORLD = {
+  bodies: [],
+  barriers: []
+};
+
 class Rope {
   // default: one fixed end at 0, 70kg hanging at the other end (straight down)
   constructor(length = 5, segments = 1, end1 = new Body(0, 0, 0, 0), end2 = new Body(0, -length, 0, 70), ...deflectionPoints) {
@@ -57,6 +62,8 @@ class Rope {
     }
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
     this.maxStretchingForce = this.currentStretchingForce;
+    this.maxClimberForce = this.currentStretchingForce;
+    this.maxBelayerForce = this.currentStretchingForce;
     this.maxEndSpeed = end2.velocity.norm();
   }
 
@@ -71,6 +78,8 @@ class Rope {
     for (let i = 0; i < this.ropeSegments.length; i++) {
       this.ropeSegments[i].applyRopeForces();
       this.currentLength += this.ropeSegments[i].currentLength;
+      if (i == 0) this.maxBelayerForce = Math.max(this.maxBelayerForce, this.ropeSegments[i].currentStretchingForce);
+      if (i == this.ropeSegments.length-1) this.maxClimberForce = Math.max(this.maxClimberForce, this.ropeSegments[i].currentStretchingForce);
     }
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
     this.maxStretchingForce = Math.max(this.currentStretchingForce, this.maxStretchingForce);
@@ -96,6 +105,7 @@ class RopeSegment {
     this.previousSegment = null; // 2nd rope segment attached to bodyA (null if bodyA is the end of the rope)
     this.followingSegment = null; // 2nd rope segment attached to bodyB (null if bodyB is the end of the rope)
     this.deflectionPoints = []; // simulates that the rope passes through carabiners
+    this.currentStretchingForce = 0;
   }
 
   applyGravity(f) {
@@ -113,15 +123,26 @@ class RopeSegment {
     let startDiff = null; let startDiffLen = 0;
     let endDiff = null; let endDiffLen = 0;
     this.tmpPosA = this.bodyA.pos;
+    let totalFriction = 1;
     for (let i = 1; i < deflPts.length; i++) {
       const bodyA = deflPts[i-1];
       const bodyB = deflPts[i];
+      if (typeof bodyB === 'undefined') {
+        console.log(this.deflectionPoints);
+        console.log(deflPts);
+        console.log(i);
+        console.log(this);
+        console.log(GLOBALS.rope);
+      }
       const diff = bodyB.pos.minus(bodyA.pos);
       const diffLen = diff.norm();
       len += diffLen;
       this.tmpDiffArr.push(diff);
       this.tmpLenArr.push(diffLen);
       if (diffLen > 0) {
+        if (endDiff !== null) { // calculate angle between incoming and outgoing rope at deflection point
+          totalFriction += bodyA.frictionCoefficient * Math.acos(diff.dot(endDiff) / (diffLen * endDiffLen));
+        }
         if (startDiffLen == 0) {
           startDiff = diff;
           startDiffLen = diffLen;
@@ -137,37 +158,34 @@ class RopeSegment {
     this.tmpDeflectionPoints = [...this.deflectionPoints];
     this.currentLength = len;
 
-    const diffTot = this.bodyB.pos.minus(this.bodyA.pos);
-    const lenTot = diffTot.norm();
     if (len > 0) {
       const directionA = startDiff.times(1 / startDiffLen);
       const directionB = endDiff.times(1 / endDiffLen);
       this.tmpDirectionA = directionA;
       this.tmpDirectionB = directionB;
       const springForceMag = (len - this.restLength) * this.springConstant;
+      this.currentStretchingForce = springForceMag;
       this.bodyA.applyForce(directionA.times(springForceMag));
       this.bodyB.applyForce(directionB.times(-springForceMag));
 
-      if (lenTot > 0) {
-        const lengthChangeRateA = -this.bodyA.velocity.dot(directionA);
-        const lengthChangeRateB = this.bodyB.velocity.dot(directionB);
+      const lengthChangeRateA = -this.bodyA.velocity.dot(directionA);
+      const lengthChangeRateB = this.bodyB.velocity.dot(directionB);
 
-        if (this.bodyA.mass > 0 && this.bodyB.mass > 0) {
-          const relativeParallelA = directionA.times(lengthChangeRateA);
-          const relativeParallelB = directionB.times(lengthChangeRateB);
-          const relativePerpA = this.bodyA.velocity.times(-1).minus(relativeParallelA);
-          const relativePerpB = this.bodyB.velocity.minus(relativeParallelB);
-          const relativePerp = relativePerpA.plus(relativePerpB);
+      if (this.bodyA.mass > 0 && this.bodyB.mass > 0) {
+        const relativeParallelA = directionA.times(lengthChangeRateA);
+        const relativeParallelB = directionB.times(lengthChangeRateB);
+        const relativePerpA = this.bodyA.velocity.times(-1).minus(relativeParallelA);
+        const relativePerpB = this.bodyB.velocity.minus(relativeParallelB);
+        const relativePerp = relativePerpA.plus(relativePerpB);
 
-          const dampingForce = relativePerp.times(this.dampingCoefficient);
-          this.bodyA.applyForce(dampingForce);
-          this.bodyB.applyForce(dampingForce.times(-1));
-        }
-      
-        const lengthChangeRate = lengthChangeRateA + lengthChangeRateB;
-        this.bodyA.applyForce(directionA.times(lengthChangeRate * this.internalDamping));
-        this.bodyB.applyForce(directionB.times(-lengthChangeRate * this.internalDamping));
+        const dampingForce = relativePerp.times(this.dampingCoefficient);
+        this.bodyA.applyForce(dampingForce);
+        this.bodyB.applyForce(dampingForce.times(-1));
       }
+    
+      const lengthChangeRate = lengthChangeRateA + lengthChangeRateB;
+      this.bodyA.applyForce(directionA.times(lengthChangeRate * this.internalDamping));
+      this.bodyB.applyForce(directionB.times(-lengthChangeRate * this.internalDamping));
     }
   }
   
@@ -282,6 +300,16 @@ class Body {
     this.appliedForces = new V(0, 0, 0);
     this.mass = mass;
     this.velocityDamping = 1; // 0.9;
+    this.frictionCoefficient = 0.125;
+    this.maxForce = 0;
+    this.currentAveragedForce = 0;
+    this.runningForces = [];
+    this.runningTimeDeltas = [];
+    this.runningTimeSum = 0;
+    this.runningAvgForce = 0;
+    this.time = 0;
+    this.forceAvgWindow = 0.05; // average force over 50 ms to get a more "stable" maximum force
+    PHYSICS_WORLD.bodies.push(this);
   }
 
   clearForces() {
@@ -297,14 +325,53 @@ class Body {
   }
 
   timeStep(delta, clearForces = true, applyChanges = true) {
+    this.time += delta;
+    const cForce = this.appliedForces.norm();
+    this.runningAvgForce += delta * cForce;
+    this.runningForces.push(cForce);
+    this.runningTimeDeltas.push(delta);
+    this.runningTimeSum += delta;
+    while (this.runningTimeSum - this.runningTimeDeltas[0] >= this.forceAvgWindow) {
+      this.runningTimeSum -= this.runningTimeDeltas[0];
+      this.runningAvgForce -= this.runningTimeDeltas[0] * this.runningForces[0];
+      this.runningTimeDeltas.shift();
+      this.runningForces.shift();
+    }
     if (this.mass > 0) {
       const acceleration = this.appliedForces.times(1 / this.mass);
       this.velocity = this.velocity.plus(acceleration.times(delta)).times(Math.pow(this.velocityDamping, delta));
       if (applyChanges)
         this.pos = this.pos.plus(this.velocity.times(delta));
     }
+    this.currentAveragedForce = (this.runningAvgForce - (this.runningTimeSum - this.forceAvgWindow) * this.runningForces[0]) / this.forceAvgWindow;
+    this.maxForce = Math.max(this.maxForce, this.currentAveragedForce);
     if (clearForces) this.clearForces();
     if (!applyChanges)
       return this.velocity.times(delta);
+  }
+}
+
+// assume that normalVec is a vector of length 1 !
+// normalVec should point away from the half-space which is blocked
+function addWorldBarrier(normalVec, pointInBarrier, name) {
+  const barrierInfo = {
+    normal: normalVec,
+    shift: normalVec.dot(pointInBarrier),
+    name: name
+  };
+  PHYSICS_WORLD.barriers.push(barrierInfo);
+}
+
+function ensureBarrierConstraints() {
+  for (const body of PHYSICS_WORLD.bodies) {
+    for (const barrier of PHYSICS_WORLD.barriers) {
+      const dist = barrier.normal.dot(body.pos);
+      if (dist <= barrier.shift) {
+        body.pos = body.pos.plus(barrier.normal.times(barrier.shift - dist));
+        const velocityIntoBarrier = -barrier.normal.dot(body.velocity);
+        if (velocityIntoBarrier > 0)
+          body.velocity = body.velocity.plus(barrier.normal.times(velocityIntoBarrier));
+      }
+    }
   }
 }

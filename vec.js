@@ -44,8 +44,16 @@ class V {
     return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z);
   }
 
+  normsq() {
+    return this.x*this.x + this.y*this.y + this.z*this.z;
+  }
+
   dot(vec) {
     return this.x * vec.x + this.y * vec.y + this.z * vec.z;
+  }
+
+  cross(vec) {
+    return new V(this.y * vec.z - this.z * vec.y, this.z * vec.x - this.x * vec.z, this.x * vec.y - this.y * vec.x);
   }
 
   get arr() {
@@ -64,4 +72,10 @@ class V {
   toString() {
     return `(${numToStr(this.x)}, ${numToStr(this.y)}, ${numToStr(this.z)})`;
   }
+}
+
+function calculatePlaneIntersection(n1, d1, n2, d2) {
+  const lineDir = n1.cross(n2);
+  const pointOnLine = n2.times(d1).minus(n1.times(d2)).cross(lineDir).times(1 / lineDir.normsq());
+  return [lineDir, pointOnLine];
 }

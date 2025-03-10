@@ -3,18 +3,22 @@ const GRAVITY_OF_EARTH = 9.807;
 const GRAVITY_VEC = new V(0, -GRAVITY_OF_EARTH, 0);
 
 const GLOBALS = {
-  canvasWidth: 600,
-  canvasHeight: 800,
+  canvasWidth: 900,
+  canvasHeight: 700,
   timeDelay: 0,
   cTime: 0,
-  slowMotion: 1,
+  slowMotion: 0.5,
   maxStep: 0.0001,
   maxStepNum: 100,
-  startingTime: 0
+  startingTime: 0,
+  forceGraphWidth: 800,
+  forceGraphHeight: 300,
+  maxy: -Infinity,
+  miny: Infinity
 };
 
 function main() {
-  GLOBALS.startHeight = 7; // height of climber above ground / belay
+  GLOBALS.startHeight = 6; // height of climber above ground / belay
   GLOBALS.lastDrawHeight = 5; // height of last draw above ground / belay
   GLOBALS.ropeLength = GLOBALS.startHeight + 0.1; // 10 cm slack
   GLOBALS.ropeSegmentNum = 70;
@@ -28,7 +32,7 @@ function main() {
     0.01 + Math.sqrt(GLOBALS.dPointClimLen * GLOBALS.dPointClimLen - (GLOBALS.startHeight - GLOBALS.lastDrawHeight) * (GLOBALS.startHeight - GLOBALS.lastDrawHeight)),
     GLOBALS.startHeight, 0, 70
   );
-  GLOBALS.climber.velocityDamping = 0.95; // TODO: improve
+  // GLOBALS.climber.velocityDamping = 0.95; // TODO: improve
   GLOBALS.climber.velocity = new V(0, 0, 0);
   // GLOBALS.climber.mass = (GLOBALS.ropeLength * 0.062) / (GLOBALS.ropeSegmentNum - 1); // no climber at the end of the rope
   if (GLOBALS.lastDrawHeight == 0)
@@ -39,15 +43,16 @@ function main() {
     + Math.sqrt(GLOBALS.climber.mass * GRAVITY_OF_EARTH * GLOBALS.climber.mass * GRAVITY_OF_EARTH
                 + 2 * GLOBALS.climber.mass * GRAVITY_OF_EARTH * GLOBALS.fallFactor / GLOBALS.rope.elasticityConstant);
   
-  const FPS = 40;
+  GLOBALS.wallAngle = 10; // overhanging degrees
+  addWorldBarrier(new V(Math.cos(Math.PI * GLOBALS.wallAngle / 180), -Math.sin(Math.PI * GLOBALS.wallAngle / 180), 0), GLOBALS.deflectionPoint.pos.minus(new V(0.3, 0, 0)), 'wall');
+  addWorldBarrier(new V(0, 1, 0), GLOBALS.anchor.pos, 'floor');
+
+  const FPS = 50;
   const snapshots = precalculatePositions(8, FPS);
   GLOBALS.startingTime = (new Date()).getTime() / 1000;
   // framePerFrame(snapshots);
 
   window.requestAnimationFrame(() => playInLoop(snapshots, FPS));
-
-  // GLOBALS.lastTimeStep = (new Date()).getTime() / 1000;
-  // window.requestAnimationFrame(mainSimulationLoop);
 }
 
 function framePerFrame(snapshots) {
@@ -67,9 +72,9 @@ function framePerFrame(snapshots) {
 }
 
 function playInLoop(snapshots, FPS) {
-  const cTime = (new Date()).getTime() / 1000 - GLOBALS.startingTime;
+  const cTime = GLOBALS.slowMotion * ((new Date()).getTime() / 1000 - GLOBALS.startingTime);
 
-  drawRope(snapshots[Math.round(cTime * FPS) % snapshots.length]);
+  drawRope(snapshots[Math.round(cTime * FPS) % snapshots.length], snapshots);
   
   window.requestAnimationFrame(() => playInLoop(snapshots, FPS));
 }
@@ -89,11 +94,21 @@ function precalculatePositions(targetTime, FPS = 40) {
           ss_defl[i].push(GLOBALS.rope.ropeSegments[i].deflectionPoints[k].pos);
       }
     }
+    GLOBALS.maxy = Math.max(GLOBALS.maxy, GLOBALS.climber.pos.y);
+    GLOBALS.miny = Math.min(GLOBALS.miny, GLOBALS.climber.pos.y);
     snapshots.push({
       positions: ss, deflectionPoints: ss_defl, cTime: t, timeDelay: 0, maxStretchingForce: GLOBALS.rope.maxStretchingForce,
       expectedForce: GLOBALS.expectedForce, climberGravity: GLOBALS.climber.mass * GRAVITY_OF_EARTH,
-      maxSpeed: GLOBALS.rope.maxEndSpeed,
-      forces: ss_forc
+      maxSpeed: GLOBALS.rope.maxEndSpeed, maxStretchingFClimber: GLOBALS.rope.maxClimberForce,
+      maxStretchingFBelayer: GLOBALS.rope.maxBelayerForce, forces: ss_forc,
+      maxClimberForce: GLOBALS.climber.maxForce,
+      maxBelayerForce: GLOBALS.anchor.maxForce,
+      currentStretchingForce: GLOBALS.rope.currentStretchingForce,
+      currentClimberForce: GLOBALS.climber.currentAveragedForce,
+      currentBelayerForce: GLOBALS.anchor.currentAveragedForce,
+      climberY: GLOBALS.climber.pos.y,
+      belayerY: GLOBALS.anchor.pos.y,
+      topDrawY: GLOBALS.deflectionPoint.pos.y
      });
   };
   GLOBALS.rope.applyGravity(GRAVITY_VEC);
@@ -103,6 +118,7 @@ function precalculatePositions(targetTime, FPS = 40) {
   let lastSnapshot = 0;
   for (let i = 1; i <= numSteps; i++) {
     GLOBALS.rope.timeStep(GLOBALS.maxStep);
+    ensureBarrierConstraints();
     GLOBALS.rope.applyGravity(GRAVITY_VEC);
     GLOBALS.rope.applyRopeForces();
     if (i * GLOBALS.maxStep - lastSnapshot >= 1 / FPS) {
@@ -113,16 +129,82 @@ function precalculatePositions(targetTime, FPS = 40) {
   return snapshots;
 }
 
-function drawRope(infoObj) {
-  const { positions, deflectionPoints, forces, cTime, timeDelay, maxStretchingForce, expectedForce, climberGravity, maxSpeed } = infoObj;
+function drawRope(infoObj, snapshots) {
+  const {
+    positions, deflectionPoints, forces, cTime, timeDelay, maxStretchingForce, expectedForce, climberGravity, maxSpeed,
+    maxStretchingFClimber, maxStretchingFBelayer, maxClimberForce, maxBelayerForce
+  } = infoObj;
 
+  const lastSnapshot = snapshots[snapshots.length - 1];
+  const maxTime = lastSnapshot.cTime;
+  const maxForce = Math.max(lastSnapshot.maxStretchingForce, lastSnapshot.maxClimberForce, lastSnapshot.maxBelayerForce);
+
+  const dpr = window.devicePixelRatio || 1;
   const canvas = document.getElementById('main-canvas');
+  const forceGraphCanvas = document.getElementById('force-canvas');
   if (canvas.width != GLOBALS.canvasWidth || canvas.height !=  GLOBALS.canvasHeight) {
     canvas.width = GLOBALS.canvasWidth;
     canvas.height = GLOBALS.canvasHeight;
-    canvas.style.width = `${GLOBALS.canvasWidth}px`;
-    canvas.style.height = `${GLOBALS.canvasHeight}px`;
+    canvas.style.width = `${GLOBALS.canvasWidth / dpr}px`;
+    canvas.style.height = `${GLOBALS.canvasHeight / dpr}px`;
   }
+  if (forceGraphCanvas.width != GLOBALS.forceGraphWidth || forceGraphCanvas.height !=  GLOBALS.forceGraphHeight) {
+    forceGraphCanvas.width = GLOBALS.forceGraphWidth;
+    forceGraphCanvas.height = GLOBALS.forceGraphHeight;
+    forceGraphCanvas.style.width = `${GLOBALS.forceGraphWidth / dpr}px`;
+    forceGraphCanvas.style.height = `${GLOBALS.forceGraphHeight / dpr}px`;
+    forceGraphCanvas.style.position = 'absolute';
+    forceGraphCanvas.style.right = '0px';
+    forceGraphCanvas.style.bottom = '0px';
+  }
+
+  const gctx = forceGraphCanvas.getContext('2d');
+  gctx.clearRect(0, 0, GLOBALS.forceGraphWidth, GLOBALS.forceGraphHeight);
+
+  const forcesToPlot = ['climberGravity', 'currentStretchingForce', 'currentClimberForce', 'currentBelayerForce', 'topDrawY', 'climberY', 'belayerY'];
+  const forceColors = ['green', 'black', 'green', 'red', 'blue', 'green', 'red'];
+  const forceStrokeStyle = ['dotted', 'solid', 'solid', 'solid', 'dashed', 'dashed', 'dashed'];
+  const minmax = [[0, maxForce], [0, maxForce], [0, maxForce], [0, maxForce], [Math.min(0, GLOBALS.miny), GLOBALS.maxy], [Math.min(0, GLOBALS.miny), GLOBALS.maxy], [Math.min(0, GLOBALS.miny), GLOBALS.maxy]];
+  for (let i = 0; i < forcesToPlot.length; i++) {
+    gctx.beginPath();
+    for (let x = 0; x <= GLOBALS.forceGraphWidth; x++) {
+      let yval = 0;
+      if (snapshots.length > GLOBALS.forceGraphWidth) {
+        const sIdx = Math.round((x / GLOBALS.forceGraphWidth) * (snapshots.length - 1));
+        yval = (1 - (snapshots[sIdx][forcesToPlot[i]] - minmax[i][0]) / (minmax[i][1] - minmax[i][0])) * GLOBALS.forceGraphHeight;
+      } else {
+        const sIdx = Math.floor((x / GLOBALS.forceGraphWidth) * (snapshots.length - 1));
+        const frac = (x / GLOBALS.forceGraphWidth) * (snapshots.length - 1) - sIdx;
+        if (sIdx == snapshots.length - 1) yval = (1 - (snapshots[sIdx][forcesToPlot[i]] - minmax[i][0]) / (minmax[i][1] - minmax[i][0])) * GLOBALS.forceGraphHeight;
+        else {
+          yval = (1 - frac) * (1 - (snapshots[sIdx][forcesToPlot[i]] - minmax[i][0]) / (minmax[i][1] - minmax[i][0])) * GLOBALS.forceGraphHeight
+            + frac * (1 - (snapshots[sIdx+1][forcesToPlot[i]] - minmax[i][0]) / (minmax[i][1] - minmax[i][0])) * GLOBALS.forceGraphHeight;
+        }
+      }
+      if (x == 0) gctx.moveTo(x, yval);
+      else gctx.lineTo(x, yval);
+    }
+    if (forceStrokeStyle[i] == 'dashed')
+      gctx.setLineDash([10, 5]);
+    else if (forceStrokeStyle[i] == 'dotted')
+      gctx.setLineDash([1, 2]);
+    else
+      gctx.setLineDash([]);
+    gctx.strokeStyle = forceColors[i];
+    gctx.lineWidth = 1;
+    gctx.stroke();
+    gctx.closePath();
+  }
+  gctx.setLineDash([]);
+  
+  gctx.beginPath();
+  gctx.moveTo(cTime / maxTime * GLOBALS.forceGraphWidth, 0);
+  gctx.lineTo(cTime / maxTime * GLOBALS.forceGraphWidth, GLOBALS.forceGraphHeight);
+  gctx.strokeStyle = 'black';
+  gctx.lineWidth = 1;
+  gctx.stroke();
+  gctx.closePath();
+
   const XORIG = GLOBALS.canvasWidth / 2;
   const YORIG = GLOBALS.canvasHeight - 50;
   const SCALE = 50;
@@ -130,6 +212,57 @@ function drawRope(infoObj) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, GLOBALS.canvasWidth, GLOBALS.canvasHeight);
   ctx.lineJoin = 'round';
+  for (const barrier of PHYSICS_WORLD.barriers) {
+    if (Math.abs(barrier.normal.dot(new V(0, 1, 0))) == 1) {
+      const ycoord = barrier.shift * barrier.normal.dot(new V(0, 1, 0));
+      ctx.beginPath();
+      ctx.moveTo(0, YORIG - ycoord*SCALE);
+      ctx.lineTo(GLOBALS.canvasWidth, YORIG - ycoord*SCALE);
+      ctx.strokeStyle = 'brown';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.closePath();
+    } else if (barrier.normal.dot(new V(0, 1, 0)) == 0) {
+      const xcoord = barrier.shift * barrier.normal.dot(new V(1, 0, 0));
+      ctx.beginPath();
+      ctx.moveTo(XORIG + xcoord*SCALE, 0);
+      ctx.lineTo(XORIG + xcoord*SCALE, GLOBALS.canvasHeight);
+      ctx.strokeStyle = 'brown';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.closePath();
+    } else {
+      const normalLR = new V(1, 0, 0);
+      const leftShift = -XORIG / SCALE;
+      const rightShift = (GLOBALS.canvasWidth - XORIG) / SCALE;
+      const normalTB = new V(0, 1, 0);
+      const topShift = YORIG / SCALE;
+      const bottomShift = -(GLOBALS.canvasHeight - YORIG) / SCALE;
+      const bndCoords = [];
+      for (const [shift, normal, coord, otherCoord] of [
+            [leftShift, normalLR, 'y', 0], [rightShift, normalLR, 'y', GLOBALS.canvasWidth], [topShift, normalTB, 'x', 0], [bottomShift, normalTB, 'x', GLOBALS.canvasHeight]
+          ]) {
+        const [lineDir, pointOnLine] = calculatePlaneIntersection(barrier.normal, barrier.shift, normal, shift);
+        const coordVal = ((coord == 'x') ? pointOnLine.x : pointOnLine.y) * SCALE;
+        const graphCoord = (coord == 'x') ? XORIG + coordVal : YORIG - coordVal;
+        if (coord == 'x' && graphCoord >= 0 && graphCoord <= GLOBALS.canvasWidth) {
+          bndCoords.push([graphCoord, otherCoord]);
+        } else if (coord == 'y' && graphCoord >= 0 && graphCoord <= GLOBALS.canvasHeight) {
+          bndCoords.push([graphCoord, otherCoord]);
+        }
+      }
+      if (bndCoords.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(bndCoords[0][0], bndCoords[0][1]);
+        for (let i = 1; i < bndCoords.length; i++)
+          ctx.lineTo(bndCoords[i][0], bndCoords[i][1]);
+        ctx.strokeStyle = 'brown';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.closePath();
+      }
+    }
+  }
 
   for (let i = 0; i <= 20; i++) {
     ctx.beginPath();
@@ -158,6 +291,10 @@ function drawRope(infoObj) {
   ctx.fillText(`expected force (vertical fall): ${numToStr(expectedForce, 2, 11)} N`, GLOBALS.canvasWidth - 5, GLOBALS.canvasHeight / 2 + 60);
   ctx.fillText(`gravity on climber: ${numToStr(climberGravity, 2, 11)} N`, GLOBALS.canvasWidth - 5, GLOBALS.canvasHeight / 2 + 80);
   ctx.fillText(`max. speed of climber: ${numToStr(maxSpeed * 3.6, 2, 11)} km/h`, GLOBALS.canvasWidth - 5, GLOBALS.canvasHeight / 2 + 100);
+  ctx.fillText(`max. rope force, climber's end: ${numToStr(maxStretchingFClimber, 2, 11)} N`, GLOBALS.canvasWidth - 5, GLOBALS.canvasHeight / 2 + 120);
+  ctx.fillText(`max. rope force, belayer's end: ${numToStr(maxStretchingFBelayer, 2, 11)} N`, GLOBALS.canvasWidth - 5, GLOBALS.canvasHeight / 2 + 140);
+  ctx.fillText(`max. force on climber: ${numToStr(maxClimberForce, 2, 11)} N`, GLOBALS.canvasWidth - 5, GLOBALS.canvasHeight / 2 + 160);
+  ctx.fillText(`max. force on belayer: ${numToStr(maxBelayerForce, 2, 11)} N`, GLOBALS.canvasWidth - 5, GLOBALS.canvasHeight / 2 + 180);
 
   ctx.beginPath();
   const dPos = GLOBALS.deflectionPoint.pos;
@@ -230,34 +367,4 @@ function drawRope(infoObj) {
   //   ctx.closePath();
   // }
 
-}
-
-function mainSimulationLoop() {
-  const cTime = (new Date()).getTime() / 1000;
-  const delta_t = cTime - GLOBALS.lastTimeStep;
-  if (delta_t == 0) {
-    window.requestAnimationFrame(mainSimulationLoop);
-    return;
-  }
-  
-  const tStep = Math.min(GLOBALS.slowMotion * delta_t, GLOBALS.maxStep);
-  const numSteps = Math.min(GLOBALS.maxStepNum, Math.floor(GLOBALS.slowMotion * delta_t / tStep));
-  for (let i = 0; i < numSteps; i++) {
-    GLOBALS.rope.applyGravity(GRAVITY_VEC);
-    GLOBALS.rope.applyRopeForces();
-    GLOBALS.rope.timeStep(tStep);
-  }
-  GLOBALS.timeDelay += delta_t - numSteps * tStep;
-  GLOBALS.cTime += numSteps * tStep;
-
-  drawRope({
-    positions: GLOBALS.rope.bodies.map(item => item.pos), cTime: GLOBALS.cTime, timeDelay: GLOBALS.timeDelay, maxStretchingForce: GLOBALS.rope.maxStretchingForce,
-    expectedForce: GLOBALS.expectedForce, climberGravity: GLOBALS.climber.mass * GRAVITY_OF_EARTH,
-    maxSpeed: GLOBALS.rope.maxEndSpeed,
-    deflectionPoints: GLOBALS.rope.bodies.map(item => []), // TODO!
-    forces: GLOBALS.rope.bodies.map(item => item.appliedForces)
-   });
-  
-  GLOBALS.lastTimeStep = cTime;
-  window.requestAnimationFrame(mainSimulationLoop);
 }
