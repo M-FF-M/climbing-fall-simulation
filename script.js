@@ -16,7 +16,8 @@ const GLOBALS = {
   maxy: -Infinity,
   miny: Infinity,
   maxe: -Infinity,
-  mine: Infinity
+  mine: Infinity,
+  interruptSimulation: false
 };
 
 function main() {
@@ -55,11 +56,7 @@ function main() {
   addWorldBarrier(new V(0, 1, 0), new V(0, 0, 0), 'floor');
 
   const FPS = 40;
-  const snapshots = precalculatePositions(4, FPS);
-  GLOBALS.startingTime = (new Date()).getTime() / 1000;
-  // framePerFrame(snapshots);
-
-  window.requestAnimationFrame(() => playInLoop(snapshots, FPS));
+  window.setTimeout(() => precalculatePositions(4, FPS), 10);
 }
 
 function framePerFrame(snapshots) {
@@ -86,9 +83,9 @@ function playInLoop(snapshots, FPS) {
   window.requestAnimationFrame(() => playInLoop(snapshots, FPS));
 }
 
-function precalculatePositions(targetTime, FPS = 40) {
+function precalculatePositions(targetTime, FPS = 40, prevSnapshots = [], stepsDone = 0, lastSnapshot = 0) {
   let lastTime = (new Date()).getTime();
-  const snapshots = [];
+  const snapshots = [...prevSnapshots];
   const addSnapshot = (t) => {
     const ss = [];
     const ss_defl = [];
@@ -130,12 +127,15 @@ function precalculatePositions(targetTime, FPS = 40) {
       energy: energy
      });
   };
-  GLOBALS.rope.applyGravity(GRAVITY_VEC);
-  GLOBALS.rope.applyRopeForces();
-  addSnapshot(0);
-  const numSteps = targetTime / GLOBALS.maxStep;
-  let lastSnapshot = 0;
-  for (let i = 1; i <= numSteps; i++) {
+
+  if (prevSnapshots.length == 0) {
+    GLOBALS.rope.applyGravity(GRAVITY_VEC);
+    GLOBALS.rope.applyRopeForces();
+    addSnapshot(0);
+  }
+  const numSteps = Math.ceil(targetTime / GLOBALS.maxStep);
+  let i = stepsDone + 1;
+  for (; i <= numSteps; i++) {
     GLOBALS.rope.timeStep(GLOBALS.maxStep);
     ensureBarrierConstraints();
     GLOBALS.rope.applyGravity(GRAVITY_VEC);
@@ -144,13 +144,22 @@ function precalculatePositions(targetTime, FPS = 40) {
       addSnapshot(i * GLOBALS.maxStep);
       lastSnapshot = i * GLOBALS.maxStep;
     }
-    const cTime = (new Date()).getTime();
-    if (cTime - lastTime > 5000) {
-      console.log(`Progress: ${numToStr(i / numSteps * 100, 2, 11)} %`);
-      lastTime = cTime;
+    if ((new Date()).getTime() - lastTime > 500) {
+      document.getElementById('pinfo_text').innerText = `Progress: ${numToStr(i / numSteps * 100, 2, 5)} %, currently at time ${numToStr(i * GLOBALS.maxStep, 2, 11)} s`;
+      if (!GLOBALS.interruptSimulation) {
+        window.setTimeout(() => precalculatePositions(targetTime, FPS, snapshots, i, lastSnapshot), 10);
+        return;
+      } else {
+        i++;
+        break;
+      }
     }
   }
-  return snapshots;
+  
+  document.getElementById('pinfo_text').innerText = `Simulation ${i-1 == numSteps ? '' : '(partially) '}completed, up to time ${numToStr((i-1) * GLOBALS.maxStep, 2, 11)} s`;
+  GLOBALS.startingTime = (new Date()).getTime() / 1000;
+  // framePerFrame(snapshots);
+  window.requestAnimationFrame(() => playInLoop(snapshots, FPS));
 }
 
 function drawRope(infoObj, snapshots) {

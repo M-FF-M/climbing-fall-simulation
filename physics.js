@@ -2,7 +2,8 @@
 const PHYSICS_WORLD = {
   bodies: [],
   barriers: [],
-  warningsShortRopeSegments: true
+  warningsShortRopeSegments: true,
+  EPS: 1e-10
 };
 
 class Rope {
@@ -37,7 +38,7 @@ class Rope {
       const dPoints = [], dPointPos = [], dPointSpeed = [];
       const partialRopeLen = i * (this.currentLength / segments);
       let prevPartRopeLen = (i-1) * (this.currentLength / segments);
-      while (lenArrIdx < deflectionPoints.length && (partialRopeLen + ((i == segments) ? 1e-8 : 0)) > lenArr[lenArrIdx]) {
+      while (lenArrIdx < deflectionPoints.length && (partialRopeLen + ((i == segments) ? PHYSICS_WORLD.EPS : 0)) > lenArr[lenArrIdx]) {
         dPoints.push(deflectionPoints[lenArrIdx]);
         dPointPos.push((lenArr[lenArrIdx] - prevPartRopeLen) / currentStretchingFactor);
         dPointSpeed.push(0);
@@ -63,6 +64,8 @@ class Rope {
       for (const dp of dPointPos) this.ropeSegments[i-1].deflectionPointPositions.push(dp);
       for (const dp of dPointSpeed) this.ropeSegments[i-1].deflectionPointSlidingSpeeds.push(dp);
     }
+    if (lenArrIdx != deflectionPoints.length || this.ropeSegments.length != segments)
+      throw new Error(`not all deflection points included in rope (${lenArrIdx} of ${deflectionPoints.length}) or wrong number of segments (${this.ropeSegments.length} instead of ${segments})`);
 
     for (let i = 0; i < this.ropeSegments.length; i++) {
       if (i > 0) this.ropeSegments[i].previousSegment = this.ropeSegments[i-1];
@@ -133,7 +136,7 @@ class Rope {
     }
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
     this.maxStretchingForce = Math.max(this.currentStretchingForce, this.maxStretchingForce);
-    if (Math.abs(checkRestLen - this.restLen) > 1e-7)
+    if (Math.abs(checkRestLen - this.restLen) > PHYSICS_WORLD.EPS)
       throw new Error('The rest length of the rope segments is off!');
   }
 
@@ -243,7 +246,7 @@ class RopeSegment {
     this.tmpEndDiff = endDiff;
     this.tmpEndDiffLen = endDiffLen;
     this.currentLength = len;
-    if (Math.abs(this.restLength - currentRestLength) > 1e-9) console.warn(`rope segment with changing rest length: ${this.restLength} to ${currentRestLength}`);
+    if (Math.abs(this.restLength - currentRestLength) > PHYSICS_WORLD.EPS) console.warn(`rope segment with changing rest length: ${this.restLength} to ${currentRestLength}`);
     this.restLength = currentRestLength;
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
 
@@ -295,7 +298,9 @@ class RopeSegment {
       
       const slidingAcc = effectiveSlidingForce / this.mass;
       this.deflectionPointSlidingSpeeds[i] += slidingAcc * delta;
-      if (Math.abs(this.deflectionPointSlidingSpeeds[i]) < Math.abs(slidingAcc * delta) - 1e-10) this.deflectionPointSlidingSpeeds[i] = 0;
+      if ((Math.abs(this.deflectionPointSlidingSpeeds[i]) < Math.abs(slidingAcc * delta) - PHYSICS_WORLD.EPS)
+          && (frictionForce >= Math.abs(slidingForce)))
+        this.deflectionPointSlidingSpeeds[i] = 0;
       this.deflectionPointPositions[i] -= this.deflectionPointSlidingSpeeds[i] * delta;
       this.deflectionPointPositions[i+1] += this.deflectionPointSlidingSpeeds[i] * delta;
     }
