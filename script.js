@@ -32,6 +32,7 @@ function main() {
   GLOBALS.anchorMass = 70;
   GLOBALS.anchor = new Body(0, GLOBALS.anchorHeight, 0, GLOBALS.anchorMass);
   GLOBALS.deflectionPoint = new Body(0.005, GLOBALS.lastDrawHeight, 0, 0);
+  // GLOBALS.deflectionPoint.frictionCoefficient = 0;
   GLOBALS.anchorDPointLen = GLOBALS.lastDrawHeight == 0 ? 0 : GLOBALS.deflectionPoint.pos.minus(GLOBALS.anchor.pos).norm();
   GLOBALS.dPointClimLen = GLOBALS.ropeLength - GLOBALS.anchorDPointLen;
   GLOBALS.climberMass = 70;
