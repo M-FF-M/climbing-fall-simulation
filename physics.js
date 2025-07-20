@@ -144,7 +144,7 @@ class Rope {
       this.ropeSegments[idx-1].followingSegment = this.ropeSegments[idx];
       this.ropeSegments[idx].previousSegment = this.ropeSegments[idx-1];
     } else {
-      if (idx < this.ropeSegments) this.ropeSegments[idx].previousSegment = null;
+      if (idx < this.ropeSegments.length) this.ropeSegments[idx].previousSegment = null;
       if (idx > 0) this.ropeSegments[idx-1].followingSegment = null;
     }
     this.bodies.splice(idx, 2, idx < this.ropeSegments.length ? this.ropeSegments[idx].bodyA : this.ropeSegments[idx-1].bodyB);
@@ -350,7 +350,11 @@ class RopeSegment {
       this.tmpTensionArr.push(tension);
       
       if (endDiff !== null) { // calculate angle between incoming and outgoing rope at deflection point (endDiff contains vector pointing from previous deflection point to current local bodyA)
-        this.tmpAngleArr.push(Math.acos(diff.dot(endDiff) / (diffLen * endDiffLen)));
+        this.tmpAngleArr.push(
+          Math.acos( Math.min(1, Math.max(-1,
+            diff.dot(endDiff) / (diffLen * endDiffLen)
+          )) )
+        );
       } else { // only in first iteration
         this.tmpAngleArr.push(0);
       }
