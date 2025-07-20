@@ -425,6 +425,7 @@ class RopeSegment {
       let tensionRight = this.tmpTensionArr[i+1];
       const slidingForce = tensionRight - tensionLeft; // force pulling the rope over the deflection point from bodyA to bodyB
       // calculate the friction force, which is proportional to the normal force (the force pushing the rope against the carabiner)
+      // for details, search for Capstan equation: https://en.wikipedia.org/wiki/Capstan_equation
       const frictionForce = (tensionLeft > 0 && tensionRight > 0)
         ? Math.min(tensionLeft, tensionRight) * (Math.exp(this.deflectionPoints[i].frictionCoefficient * this.tmpAngleArr[i+1]) - 1)
         : 0; // no friction force (approximation!) if the rope is not under tension on at least one side of the deflection point
