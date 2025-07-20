@@ -49,7 +49,7 @@ class Rope {
 
     const deflPts = [end1, ...deflectionPoints, end2];
     let cumLen = 0;
-    const lenArr = [];
+    const lenArr = []; // contains the cumulative rope lengths up to the respective deflection points
     for (let i = 1; i < deflPts.length; i++) {
       const len = deflPts[i].pos.minus(deflPts[i-1].pos).norm();
       cumLen += len;
@@ -67,22 +67,24 @@ class Rope {
     let lenArrIdx = 0;
     for (let i = 1; i <= segments; i++) {
       const dPoints = [], dPointPos = [], dPointSpeed = [];
-      const partialRopeLen = i * (this.currentLength / segments);
-      let prevPartRopeLen = (i-1) * (this.currentLength / segments);
+      const partialRopeLen = i * (this.currentLength / segments); // length of first i segments
+      let prevPartRopeLen = (i-1) * (this.currentLength / segments); // length of first (i-1) segments
+      // insert all deflection points which lie within the current rope segment into the dPoints array
       while (lenArrIdx < deflectionPoints.length && (partialRopeLen + ((i == segments) ? PHYSICS_WORLD.EPS : 0)) > lenArr[lenArrIdx]) {
         dPoints.push(deflectionPoints[lenArrIdx]);
-        dPointPos.push((lenArr[lenArrIdx] - prevPartRopeLen) / currentStretchingFactor);
+        dPointPos.push((lenArr[lenArrIdx] - prevPartRopeLen) / currentStretchingFactor); // rest length from previous up to the given deflection point
         dPointSpeed.push(0);
         prevPartRopeLen = lenArr[lenArrIdx];
         lenArrIdx++;
       }
-      dPointPos.push((partialRopeLen - prevPartRopeLen) / currentStretchingFactor);
+      dPointPos.push((partialRopeLen - prevPartRopeLen) / currentStretchingFactor); // insert rest length from last deflection point up to end of rope segment
       if (i < segments) {
-        const dSegLen = lenArr[lenArrIdx] - (lenArrIdx == 0 ? 0 : lenArr[lenArrIdx-1]);
-        const dSegFac = (partialRopeLen - (lenArrIdx == 0 ? 0 : lenArr[lenArrIdx-1])) / dSegLen;
+        const dSegLen = lenArr[lenArrIdx] - (lenArrIdx == 0 ? 0 : lenArr[lenArrIdx-1]); // length of the section from the last to the next deflection point
+        const dSegFac = (partialRopeLen - (lenArrIdx == 0 ? 0 : lenArr[lenArrIdx-1])) / dSegLen; // fraction of that section at which the end of the current rope segment should lie
+        // create new body at the end of the current deflection point
         this.bodies.push(new Body(...deflPts[lenArrIdx].pos.times(1 - dSegFac).plus(deflPts[lenArrIdx+1].pos.times(dSegFac)).arr,
-          segmentMass * (1 + ((i == 1) ? 0.5 : 0) + ((i == segments-1) ? 0.5 : 0))));
-      } else {
+          segmentMass * (1 + ((i == 1) ? 0.5 : 0) + ((i == segments-1) ? 0.5 : 0)))); // body should have the mass of one rope segment; additional mass at beginning and end of rope because end1 and end2 bodies carry no rope mass
+      } else { // this is the last segment => insert end2 as last body in the rope
         this.bodies.push(end2);
       }
       this.ropeSegments.push(new RopeSegment(
@@ -90,24 +92,27 @@ class Rope {
         this.defaultSegmentLength, this.minSegmentLength, this.maxSegmentLength, this.defaultSegmentLength,
         this.elasticityConstant, this.dampingCoefficient, this.internalDamping
       ));
-      this.ropeSegments[i-1].deflectionPointPositions = [];
-      for (const dp of dPoints) this.ropeSegments[i-1].deflectionPoints.push(dp);
+      this.ropeSegments[i-1].deflectionPointPositions = []; // clear default entry from deflectionPointPositions array
+      for (const dp of dPoints) this.ropeSegments[i-1].deflectionPoints.push(dp); // insert deflection points
       for (const dp of dPointPos) this.ropeSegments[i-1].deflectionPointPositions.push(dp);
       for (const dp of dPointSpeed) this.ropeSegments[i-1].deflectionPointSlidingSpeeds.push(dp);
     }
     if (lenArrIdx != deflectionPoints.length || this.ropeSegments.length != segments)
       throw new Error(`not all deflection points included in rope (${lenArrIdx} of ${deflectionPoints.length}) or wrong number of segments (${this.ropeSegments.length} instead of ${segments})`);
 
-    for (let i = 0; i < this.ropeSegments.length; i++) {
+    for (let i = 0; i < this.ropeSegments.length; i++) { // set previous/followingSegment, rope and indexInRope properties of rope segments
       if (i > 0) this.ropeSegments[i].previousSegment = this.ropeSegments[i-1];
       if (i+1 < this.ropeSegments.length) this.ropeSegments[i].followingSegment = this.ropeSegments[i+1];
       this.ropeSegments[i].rope = this;
       this.ropeSegments[i].indexInRope = i;
     }
-    for (let i = 1; i+1 < this.bodies.length; i++) {
-      this.bodies[i].mass = ((i == 1) ? 1 : 0.5) * this.ropeSegments[i-1].mass + ((i+1 == this.bodies.length-1) ? 1 : 0.5) * this.ropeSegments[i].mass;
+    for (let i = 1; i+1 < this.bodies.length; i++) { // check body weights
+      const newMass = ((i == 1) ? 1 : 0.5) * this.ropeSegments[i-1].mass + ((i+1 == this.bodies.length-1) ? 1 : 0.5) * this.ropeSegments[i].mass;
+      if (Math.abs(this.bodies[i].mass - newMass) > PHYSICS_WORLD.EPS)
+        console.warn(`Unexplainable rope body weight inconsistency at body ${i}: ${newMass} vs. ${this.bodies[i].mass}`);
+      this.bodies[i].mass = newMass;
     }
-    this.postprocessTimeStep();
+    this.postprocessTimeStep(); // if deflection points are too close to an end of a rope segment, this function will merge them to avoid rope segments which are too short
 
     /** @type {number} the force in Newton which is required to stretch the rope to its current length */
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
@@ -310,39 +315,43 @@ class RopeSegment {
    * May throw errors or warnings if inconsistencies in the current system state are detected. For details, check the code.
    */
   applyRopeForces() {
-    this.currentLength = 0;
-    this.currentElasticEnergy = 0;
-    let len = 0;
+    this.currentLength = 0; // current (stretched) length of the rope segment
+    this.currentElasticEnergy = 0; // current elastic energy stored in the rope segment
+    let len = 0; // temporary variable for calculating the current length of the rope segment
+    /** @type {V[]} contains vectors pointing from one deflection point (or rope segment end) to the next */
     this.tmpDiffArr = [];
+    /** @type {number[]} contains the actual distance between the deflection points, and between the deflection points and the two ends of the rope segment */
     this.tmpLenArr = [];
+    /** @type {number[]} contains the current tensions (in Newton) within the parts (between deflection points) of the rope segment */
     this.tmpTensionArr = [];
+    /** @type {number[]} contains the angles (always >= 0) between incoming and outgoing rope at the deflection points */
     this.tmpAngleArr = [];
-    const deflPts = [this.bodyA, ...this.deflectionPoints, this.bodyB];
-    let startDiff = null; let startDiffLen = 0; let startTension = 0;
-    let endDiff = null; let endDiffLen = 0; let endTension = 0;
-    let currentRestLength = 0;
+    const deflPts = [this.bodyA, ...this.deflectionPoints, this.bodyB]; // array containing deflection points as well as rope segment ends
+    let startDiff = null; let startDiffLen = 0; let startTension = 0; // first entry of tmpDiffArr, tmpLenArr, tmpTensionArr
+    let endDiff = null; let endDiffLen = 0; let endTension = 0; // last entry of tmpDiffArr, tmpLenArr, tmpTensionArr
+    let currentRestLength = 0; // temporary variable for calculating and checking the current rest length of the rope segment
     for (let i = 1; i < deflPts.length; i++) {
       const bodyA = deflPts[i-1];
       const bodyB = deflPts[i];
-      const diff = bodyB.pos.minus(bodyA.pos);
-      const diffLen = diff.norm();
+      const diff = bodyB.pos.minus(bodyA.pos); // vector pointing from one deflection point to the next
+      const diffLen = diff.norm(); // distance between the two deflection points
       if (diffLen == 0) throw new Error(`zero actual length of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
-      len += diffLen;
+      len += diffLen; // calculate current (stretched) length of the rope segment
       this.tmpDiffArr.push(diff);
       this.tmpLenArr.push(diffLen);
 
-      const restLen = this.deflectionPointPositions[i-1];
+      const restLen = this.deflectionPointPositions[i-1]; // rest length of the rope segment between the two deflection points
       if (restLen < 0) console.warn(`detected negative rest length of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
       else if (restLen > 0 && restLen < this.minRestLength / 2 && PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`detected small rest length ${restLen} of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
       else if (restLen == 0) throw new Error(`zero rest length of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
-      currentRestLength += restLen;
-      const tension = (diffLen - restLen) / (restLen * this.elasticityConstant);
-      this.currentElasticEnergy += 0.5 * (diffLen - restLen) * (diffLen - restLen) / (restLen * this.elasticityConstant);
+      currentRestLength += restLen; // calculate current rest length of the rope segment
+      const tension = (diffLen - restLen) / (restLen * this.elasticityConstant); // tension (= stretching force) within the segment between the two deflection points
+      this.currentElasticEnergy += 0.5 * (diffLen - restLen) * (diffLen - restLen) / (restLen * this.elasticityConstant); // stored elastic energy
       this.tmpTensionArr.push(tension);
       
-      if (endDiff !== null) { // calculate angle between incoming and outgoing rope at deflection point
+      if (endDiff !== null) { // calculate angle between incoming and outgoing rope at deflection point (endDiff contains vector pointing from previous deflection point to current local bodyA)
         this.tmpAngleArr.push(Math.acos(diff.dot(endDiff) / (diffLen * endDiffLen)));
-      } else {
+      } else { // only in first iteration
         this.tmpAngleArr.push(0);
       }
 
@@ -360,40 +369,47 @@ class RopeSegment {
     else if (currentRestLength < 0) console.warn(`detected negative rest length entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
     else if (currentRestLength > 0 && currentRestLength < this.minRestLength / 2 && PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`detected small rest length ${currentRestLength} of entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
     else if (currentRestLength == 0) throw new Error(`zero rest length of entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
+    /** @type {V} vector pointing from bodyA to first deflection point (or bodyB) */
     this.tmpStartDiff = startDiff;
+    /** @type {number} distance of bodyA to first deflection point (or bodyB) */
     this.tmpStartDiffLen = startDiffLen;
+    /** @type {V} vector pointing from last deflection point (or bodyA) to bodyB */
     this.tmpEndDiff = endDiff;
+    /** @type {number} distance of last deflection point (or bodyA) to bodyB */
     this.tmpEndDiffLen = endDiffLen;
     this.currentLength = len;
     if (Math.abs(this.restLength - currentRestLength) > PHYSICS_WORLD.EPS) console.warn(`rope segment with changing rest length: ${this.restLength} to ${currentRestLength}`);
     this.restLength = currentRestLength;
-    this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
+    this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant); // update stretching force
 
     const directionA = startDiff.times(1 / startDiffLen);
     const directionB = endDiff.times(1 / endDiffLen);
+    /** @type {V} normalized vector (length 1) pointing from bodyA to first deflection point (or bodyB) */
     this.tmpDirectionA = directionA;
+    /** @type {V} normalized vector (length 1) pointing from last deflection point (or bodyA) to bodyB */
     this.tmpDirectionB = directionB;
-    this.bodyA.applyForce(directionA.times(startTension));
-    this.bodyB.applyForce(directionB.times(-endTension));
+    this.bodyA.applyForce(directionA.times(startTension)); // bodyA is pulled in direction of (or pushed away from) first deflection point (or bodyB)
+    this.bodyB.applyForce(directionB.times(-endTension)); // bodyB is pulled in direction of (or pushed away from) last deflection point (or bodyA)
 
-    const lengthChangeRateA = -this.bodyA.velocity.dot(directionA);
-    const lengthChangeRateB = this.bodyB.velocity.dot(directionB);
+    const lengthChangeRateA = -this.bodyA.velocity.dot(directionA); // rate at which (stretched) rope segment length changes due to movement of bodyA
+    const lengthChangeRateB = this.bodyB.velocity.dot(directionB); // rate at which (stretched) rope segment length changes due to movement of bodyB
 
-    if (this.bodyA.mass > 0 && this.bodyB.mass > 0) {
-      const relativeParallelA = directionA.times(lengthChangeRateA);
-      const relativeParallelB = directionB.times(lengthChangeRateB);
-      const relativePerpA = this.bodyA.velocity.times(-1).minus(relativeParallelA);
-      const relativePerpB = this.bodyB.velocity.minus(relativeParallelB);
-      const relativePerp = relativePerpA.plus(relativePerpB);
+    if (this.bodyA.mass > 0 && this.bodyB.mass > 0) { // if both bodies can move (recall: mass 0 => fixed body), apply damping perpendicular to rope (prevent sharp corner from appearing, rope should curve smoothly)
+      const relativeParallelA = directionA.times(lengthChangeRateA); // velocity component of bodyA in -directionA
+      const relativeParallelB = directionB.times(lengthChangeRateB); // velocity component of bodyB in directionB
+      const relativePerpA = this.bodyA.velocity.times(-1).minus(relativeParallelA); // (negative of) velocity component of bodyA perpendicular to rope
+      const relativePerpB = this.bodyB.velocity.minus(relativeParallelB); // velocity component of bodyB perpendicular to rope
+      const relativePerp = relativePerpA.plus(relativePerpB); // relative velocity of rope segment ends perpendicular to rope
 
-      const dampingForce = relativePerp.times(this.dampingCoefficient / this.restLength);
-      this.bodyA.applyForce(dampingForce);
-      this.bodyB.applyForce(dampingForce.times(-1));
+      const dampingForce = relativePerp.times(this.dampingCoefficient / this.restLength); // damping should be proportional to damping coefficient, and damping should be stronger for shorter rope segments (less curvature in short rope segments)
+      this.bodyA.applyForce(dampingForce); // align bodyA's movement (perpendicular component to rope) closer with bodyB's movement
+      this.bodyB.applyForce(dampingForce.times(-1)); // align bodyB's movement (perpendicular component to rope) closer with bodyA's movement
     }
   
-    const lengthChangeRate = lengthChangeRateA + lengthChangeRateB;
-    this.bodyA.applyForce(directionA.times(lengthChangeRate * this.internalDamping / this.restLength));
-    this.bodyB.applyForce(directionB.times(-lengthChangeRate * this.internalDamping / this.restLength));
+    const lengthChangeRate = lengthChangeRateA + lengthChangeRateB; // rate at which (stretched) rope segment length changes
+    // damping along rope direction should be proportional to damping coefficient, and damping should be stronger for shorter rope segments (short rope segments are stiffer / their length is harder to change)
+    this.bodyA.applyForce(directionA.times(lengthChangeRate * this.internalDamping / this.restLength)); // damping force opposed to, and proportional to, rope stretching rate, applied to bodyA
+    this.bodyB.applyForce(directionB.times(-lengthChangeRate * this.internalDamping / this.restLength)); // damping force in opposed to, and proportional to, rope stretching rate, applied to bodyB
   }
 
   /**
@@ -405,33 +421,34 @@ class RopeSegment {
    */
   timeStep(delta, clearForces = true) {
     for (let i = 0; i < this.deflectionPoints.length; i++) {
-      let tensionLeft = this.tmpTensionArr[i];
+      let tensionLeft = this.tmpTensionArr[i]; // read calculated tensions (see applyRopeForces()) to the left and to the right of the deflection point
       let tensionRight = this.tmpTensionArr[i+1];
       const slidingForce = tensionRight - tensionLeft; // force pulling the rope over the deflection point from bodyA to bodyB
+      // calculate the friction force, which is proportional to the normal force (the force pushing the rope against the carabiner)
       const frictionForce = (tensionLeft > 0 && tensionRight > 0)
         ? Math.min(tensionLeft, tensionRight) * (Math.exp(this.deflectionPoints[i].frictionCoefficient * this.tmpAngleArr[i+1]) - 1)
-        : 0;
-      let effectiveSlidingForce = 0;
-      if (this.deflectionPointSlidingSpeeds[i] != 0) {
-        if (this.deflectionPointSlidingSpeeds[i] > 0) effectiveSlidingForce = slidingForce - frictionForce;
-        else effectiveSlidingForce = slidingForce + frictionForce;
-      } else {
-        if (frictionForce < Math.abs(slidingForce)) {
-          if (slidingForce > 0) effectiveSlidingForce = slidingForce - frictionForce;
+        : 0; // no friction force (approximation!) if the rope is not under tension on at least one side of the deflection point
+      let effectiveSlidingForce = 0; // positive sign: in direction of bodyB, negative sign: in direction of bodyA
+      if (this.deflectionPointSlidingSpeeds[i] != 0) { // the rope already slides through the carabiner
+        if (this.deflectionPointSlidingSpeeds[i] > 0) effectiveSlidingForce = slidingForce - frictionForce; // friction force opposes the direction of movement => different calculation depending on direction
+        else effectiveSlidingForce = slidingForce + frictionForce; // note: direction of slidingForce and direction of movement usually agree, unless the rope is in a phase where it changes sliding directions
+      } else { // rope doesn't move yet => the sliding force must exceed the friction force before it starts moving
+        if (frictionForce < Math.abs(slidingForce)) { // if sliding force exceeds friction force
+          if (slidingForce > 0) effectiveSlidingForce = slidingForce - frictionForce; // friction force opposes the sliding force => different calculation depending on direction
           else effectiveSlidingForce = slidingForce + frictionForce;
         }
       }
       
-      const slidingAcc = effectiveSlidingForce / this.mass;
-      this.deflectionPointSlidingSpeeds[i] += slidingAcc * delta;
-      if ((Math.abs(this.deflectionPointSlidingSpeeds[i]) < Math.abs(slidingAcc * delta) - PHYSICS_WORLD.EPS)
-          && (frictionForce >= Math.abs(slidingForce)))
-        this.deflectionPointSlidingSpeeds[i] = 0;
-      this.deflectionPointPositions[i] -= this.deflectionPointSlidingSpeeds[i] * delta;
-      this.deflectionPointPositions[i+1] += this.deflectionPointSlidingSpeeds[i] * delta;
+      const slidingAcc = effectiveSlidingForce / this.mass; // calculate the rope acceleration
+      this.deflectionPointSlidingSpeeds[i] += slidingAcc * delta; // update sliding speed
+      if ((Math.abs(this.deflectionPointSlidingSpeeds[i]) < Math.abs(slidingAcc * delta) - PHYSICS_WORLD.EPS) // if sliding speed close to 0 or if it changed signs
+          && (frictionForce >= Math.abs(slidingForce))) // and if the friction force is bigger than the sliding force
+        this.deflectionPointSlidingSpeeds[i] = 0; // then, the rope stops sliding
+      this.deflectionPointPositions[i] -= this.deflectionPointSlidingSpeeds[i] * delta; // update rest length of segment to the left of the deflection point
+      this.deflectionPointPositions[i+1] += this.deflectionPointSlidingSpeeds[i] * delta; // update rest length of segment to the right of the deflection point
     }
 
-    this.bodyA.timeStep(delta, clearForces);
+    this.bodyA.timeStep(delta, clearForces); // execute end body (bodies) timeStep functions
     if (this.followingSegment === null)
       this.bodyB.timeStep(delta, clearForces);
   }
@@ -518,56 +535,56 @@ class RopeSegment {
 
   /**
    * Second time step postprocessing task: split rope segments which are too long
-   * @return {number} the index of this rope segment in the rope (after processing)
+   * @return {number} the index of the last fully processed rope segment in the rope (i.e. the next index might still need to be split )
    */
   postprocessTimeStepB() {
     for (let i = 0; i < this.deflectionPointPositions.length; i++) {
-      if (this.deflectionPointPositions[i] > this.maxRestLength) {
+      if (this.deflectionPointPositions[i] > this.maxRestLength) { // if segment is too long
         if (this.deflectionPoints.length == 0) throw new Error(`segment without deflection points too long: ${this.deflectionPointPositions[i]}`);
-        if (i == 0) {
-          const frac = this.defaultRestLength / this.deflectionPointPositions[0];
-          const newMass = this.defaultRestLength / this.restLength * this.mass;
-          this.mass -= newMass;
-          this.deflectionPointPositions[0] -= this.defaultRestLength;
+        if (i == 0) { // part from rope segment end (closer to belayer) to first deflection point is too long
+          const frac = this.defaultRestLength / this.deflectionPointPositions[0]; // new segment with defaultRestLength will be inserted
+          const newMass = this.defaultRestLength / this.restLength * this.mass; // mass of the new segment
+          this.mass -= newMass; // this segment will be shortened; calculate its new mass
+          this.deflectionPointPositions[0] -= this.defaultRestLength; // this segment will be shortened; calculate its new rest length
           this.restLength -= this.defaultRestLength;
           const nBody = new Body(
             ...this.bodyA.pos.times(1-frac).plus(this.deflectionPoints[0].pos.times(frac)).arr,
             ((this.previousSegment === null) ? 1 : 0.5) * newMass + ((this.followingSegment === null) ? 1 : 0.5) * this.mass
-          );
-          nBody.velocity = this.bodyA.velocity;
-          if (this.previousSegment !== null) this.bodyA.mass = 0.5 * newMass + 0.5 * this.previousSegment.mass;
+          ); // create new body connecting this segment and the one which will be inserted
+          nBody.velocity = this.bodyA.velocity; // the new body should have the same speed as the old end of this segment
+          if (this.previousSegment !== null) this.bodyA.mass = 0.5 * newMass + 0.5 * this.previousSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)
           if (this.followingSegment !== null) this.bodyB.mass = 0.5 * this.followingSegment.mass + 0.5 * this.mass;
-          const newBodyA = this.bodyA;
-          this.bodyA = nBody;
+          const newBodyA = this.bodyA; // bodyA will become the new bodyA of the new segment
+          this.bodyA = nBody; // this segment will have the new connecting body as bodyA
           const nRopeSeg = new RopeSegment(newBodyA, this.bodyA, newMass,
             this.defaultRestLength, this.minRestLength, this.maxRestLength,
             this.defaultRestLength, this.elasticityConstant, this.dampingCoefficient,
             this.internalDamping
-          );
-          this.rope.insertRopeSegment(this.indexInRope, nRopeSeg);
-          return this.indexInRope - 1;
-        } else if (i == this.deflectionPointPositions.length - 1) {
-          const frac = this.defaultRestLength / this.deflectionPointPositions[this.deflectionPoints.length];
-          const newMass = this.defaultRestLength / this.restLength * this.mass;
-          this.mass -= newMass;
-          this.deflectionPointPositions[this.deflectionPoints.length] -= this.defaultRestLength;
+          ); // create new rope segment (with default rest length)
+          this.rope.insertRopeSegment(this.indexInRope, nRopeSeg); // insert segment into rope
+          return this.indexInRope - 1; // the current segment (this) might still be too long => process it again
+        } else if (i == this.deflectionPointPositions.length - 1) { // part from rope segment end (closer to climber) to last deflection point is too long
+          const frac = this.defaultRestLength / this.deflectionPointPositions[this.deflectionPoints.length]; // new segment with defaultRestLength will be inserted
+          const newMass = this.defaultRestLength / this.restLength * this.mass; // mass of the new segment
+          this.mass -= newMass; // this segment will be shortened; calculate its new mass
+          this.deflectionPointPositions[this.deflectionPoints.length] -= this.defaultRestLength; // this segment will be shortened; calculate its new rest length
           this.restLength -= this.defaultRestLength;
           const nBody = new Body(
             ...this.bodyB.pos.times(1-frac).plus(this.deflectionPoints[this.deflectionPoints.length-1].pos.times(frac)).arr,
             ((this.followingSegment === null) ? 1 : 0.5) * newMass + ((this.previousSegment === null) ? 1 : 0.5) * this.mass
-          );
-          nBody.velocity = this.bodyB.velocity;
-          if (this.followingSegment !== null) this.bodyB.mass = 0.5 * newMass + 0.5 * this.followingSegment.mass;
+          ); // create new body connecting this segment and the one which will be inserted
+          nBody.velocity = this.bodyB.velocity; // the new body should have the same speed as the old end of this segment
+          if (this.followingSegment !== null) this.bodyB.mass = 0.5 * newMass + 0.5 * this.followingSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)
           if (this.previousSegment !== null) this.bodyA.mass = 0.5 * this.previousSegment.mass + 0.5 * this.mass;
-          const newBodyB = this.bodyB;
-          this.bodyB = nBody;
+          const newBodyB = this.bodyB; // bodyB will become the new bodyB of the new segment
+          this.bodyB = nBody; // this segment will have the new connecting body as bodyB
           const nRopeSeg = new RopeSegment(this.bodyB, newBodyB, newMass,
             this.defaultRestLength, this.minRestLength, this.maxRestLength,
             this.defaultRestLength, this.elasticityConstant, this.dampingCoefficient,
             this.internalDamping
-          );
-          this.rope.insertRopeSegment(this.indexInRope + 1, nRopeSeg);
-          return this.indexInRope - 1;
+          ); // create new rope segment (with default rest length)
+          this.rope.insertRopeSegment(this.indexInRope + 1, nRopeSeg); // insert segment into rope
+          return this.indexInRope - 1; // the current segment (this) might still be too long => process it again
         } else {
           throw new Error(`Currently not supported: rope segment splitting between deflection points! Length: ${this.deflectionPointPositions[i]}`);
         }
@@ -577,62 +594,106 @@ class RopeSegment {
   }
 }
 
+/**
+ * A physical body (a point mass in the current implementation)
+ */
 class Body {
-  // mass 0: body cannot move
+  /**
+   * Create a new body (a new point mass)
+   * @param {number} [x=0] x coordinate of the new point mass (in meters)
+   * @param {number} [y=0] y coordinate of the new point mass (in meters)
+   * @param {number} [z=0] z coordinate of the new point mass (in meters)
+   * @param {number} [mass=0] mass (in kilograms) of the new point mass (default is 0, which means that the body is fixed and cannot move)
+   */
   constructor(x = 0, y = 0, z = 0, mass = 0) {
+    // mass 0: body cannot move
+    /** @type {V} current position of the body (in 3D and in meters) */
     this.pos = new V(x, y, z);
+    /** @type {V} current velocity of the body (in m/s) */
     this.velocity = new V(0, 0, 0);
+    /** @type {V} current forces applied to the body (in Newton); forces are applied in every time step of the simulation */
     this.appliedForces = new V(0, 0, 0);
+    /** @type {number} mass of the body (in kilograms) */
     this.mass = mass;
+    /** @type {number} damping coefficient for the velocity (1 = no damping, 0 = body doesn't move, all velocity absorbed immediately) */
     this.velocityDamping = 1; // 0.9;
+    /** @type {number} friction coefficient of the body (the higher, the more friction occurs between a carabiner and the rope) */
     this.frictionCoefficient = 0.125;
+    /** @type {number} running maximum of the force (in Newton) which the body has been subjected to (forces are averaged over small time frames for more stability) */
     this.maxForce = 0;
+    /** @type {number} current force (in Newton) which the body is subjected to, averaged over a small time frame */
     this.currentAveragedForce = 0;
+    /** @type {number[]} forces (in Newton) which the body has been subjected to within the current averaging window */
     this.runningForces = [];
+    /** @type {number[]} time step lengths (in seconds) within the current averaging window, corresponding to forces in runningForces array */
     this.runningTimeDeltas = [];
+    /** @type {number} sum of all the values in runningTimeDeltas, i.e. length of the captured time interval */
     this.runningTimeSum = 0;
+    /** @type {number} weighted sum of the forces in runningForces (weights are the corresponding time step lengths) */
     this.runningAvgForce = 0;
+    /** @type {number} local time of the body (in seconds), updated whenever a time step is performed */
     this.time = 0;
+    /** @type {number} length (in seconds) of the averaging window used to average forces applied to the body */
     this.forceAvgWindow = 0.05; // average force over 50 ms to get a more "stable" maximum force
-    PHYSICS_WORLD.bodies.push(this);
+    PHYSICS_WORLD.bodies.push(this); // add body to physcics world (important to ensure that the body meets barrier constraints)
   }
 
+  /**
+   * Clear all forces currently applied to the body
+   */
   clearForces() {
     this.appliedForces = new V(0, 0, 0);
   }
 
+  /**
+   * Apply a force to the body
+   * @param {V} f the force (in Newton) which should be applied
+   */
   applyForce(f) {
     this.appliedForces = this.appliedForces.plus(f);
   }
 
+  /**
+   * Apply gravity to the body
+   * @param {V} f the gravity acceleration vector in m / s^2
+   */
   applyGravity(f) {
     this.appliedForces = this.appliedForces.plus(f.times(this.mass));
   }
 
+  /**
+   * Execute a time step for this body. Accelerates the body according to the forces which are currently applied, and moves the body
+   * according to its current speed.
+   * @param {number} delta the length of the time step in seconds
+   * @param {boolean} [clearForces=true] whether to clear all forces currently applied to the body
+   * @param {boolean} [applyChanges=true] whether to update the body position (default is true). Velocity is always updated
+   * @return {void|V} returns nothing if applyChanges is true, otherwise, the function returns the vector containing the body's displacement within the current time step in meters
+   */
   timeStep(delta, clearForces = true, applyChanges = true) {
-    this.time += delta;
-    const cForce = this.appliedForces.norm();
-    this.runningAvgForce += delta * cForce;
-    this.runningForces.push(cForce);
-    this.runningTimeDeltas.push(delta);
-    this.runningTimeSum += delta;
-    while (this.runningTimeSum - this.runningTimeDeltas[0] >= this.forceAvgWindow) {
+    this.time += delta; // update local body time
+    const cForce = this.appliedForces.norm(); // current force (in Newton) acting on the body
+    this.runningAvgForce += delta * cForce; // update weighted force sum
+    this.runningForces.push(cForce); // push to forces array containing all forces within the averaging window
+    this.runningTimeDeltas.push(delta); // do the same for the time step length
+    this.runningTimeSum += delta; // update length of the captured window
+    while (this.runningTimeSum - this.runningTimeDeltas[0] >= this.forceAvgWindow) { // if captured window becomes too long: forget old values
       this.runningTimeSum -= this.runningTimeDeltas[0];
       this.runningAvgForce -= this.runningTimeDeltas[0] * this.runningForces[0];
       this.runningTimeDeltas.shift();
       this.runningForces.shift();
     }
-    if (this.mass > 0) {
-      const acceleration = this.appliedForces.times(1 / this.mass);
-      this.velocity = this.velocity.plus(acceleration.times(delta)).times(Math.pow(this.velocityDamping, delta));
+    if (this.mass > 0) { // if the body can move
+      const acceleration = this.appliedForces.times(1 / this.mass); // calculate acceleration
+      this.velocity = this.velocity.plus(acceleration.times(delta)).times(Math.pow(this.velocityDamping, delta)); // update velocity, including potential damping
       if (applyChanges)
-        this.pos = this.pos.plus(this.velocity.times(delta));
+        this.pos = this.pos.plus(this.velocity.times(delta)); // update body position
     }
+    // update current averaged force and the maximum force the body has been subjected to
     this.currentAveragedForce = (this.runningAvgForce - (this.runningTimeSum - this.forceAvgWindow) * this.runningForces[0]) / this.forceAvgWindow;
     this.maxForce = Math.max(this.maxForce, this.currentAveragedForce);
     if (clearForces) this.clearForces();
     if (!applyChanges)
-      return this.velocity.times(delta);
+      return this.velocity.times(delta); // return displacement if the displacement was not actually applied
   }
 }
 
