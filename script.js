@@ -48,6 +48,10 @@ function main() {
     GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber);
   else
     GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber, GLOBALS.deflectionPoint);
+  GLOBALS.rope.drawingColor = 'rgb(241, 160, 45)';
+  GLOBALS.deflectionPoint.drawingColor = 'rgb(52, 90, 93)';
+  GLOBALS.climber.drawingColor = 'rgb(151, 95, 96)';
+  GLOBALS.anchor.drawingColor = 'rgb(77, 136, 78)';
   GLOBALS.expectedForce = GLOBALS.climber.mass * GRAVITY_OF_EARTH
     + Math.sqrt(GLOBALS.climber.mass * GRAVITY_OF_EARTH * GLOBALS.climber.mass * GRAVITY_OF_EARTH
                 + 2 * GLOBALS.climber.mass * GRAVITY_OF_EARTH * GLOBALS.fallFactor / GLOBALS.rope.elasticityConstant);
@@ -79,7 +83,7 @@ function framePerFrame(snapshots) {
 function playInLoop(snapshots, FPS) {
   const cTime = GLOBALS.slowMotion * ((new Date()).getTime() / 1000 - GLOBALS.startingTime);
 
-  drawRope(snapshots[Math.round(cTime * FPS) % snapshots.length], snapshots);
+  drawRope(snapshots[Math.round(cTime * FPS) % snapshots.length], snapshots); // TODO: adapt this if non-uniform step sizes are allowed
   
   window.requestAnimationFrame(() => playInLoop(snapshots, FPS));
 }
@@ -88,45 +92,54 @@ function precalculatePositions(targetTime, FPS = 40, prevSnapshots = [], stepsDo
   let lastTime = (new Date()).getTime();
   const snapshots = [...prevSnapshots];
   const addSnapshot = (t) => {
-    const ss = [];
-    const ss_defl = [];
-    const ss_forc = [];
-    let energy = 0;
-    if (GLOBALS.rope.bodies[0].mass != GLOBALS.anchorMass) throw new Error('anchor / belayer changed weight');
-    if (GLOBALS.rope.bodies[GLOBALS.rope.bodies.length - 1].mass != GLOBALS.climberMass) throw new Error('climber changed weight');
-    for (let i = 0; i < GLOBALS.rope.bodies.length; i++) {
-      energy += GLOBALS.rope.bodies[i].pos.y * GLOBALS.rope.bodies[i].mass * GRAVITY_OF_EARTH;
-      energy += 0.5 * GLOBALS.rope.bodies[i].velocity.normsq() * GLOBALS.rope.bodies[i].mass;
-      ss.push(GLOBALS.rope.bodies[i].pos);
-      ss_forc.push(GLOBALS.rope.bodies[i].appliedForces);
-      ss_defl.push([]);
-      if (i+1 < GLOBALS.rope.bodies.length) {
-        for (let k = 0; k < GLOBALS.rope.ropeSegments[i].deflectionPoints.length; k++)
-          ss_defl[i].push(GLOBALS.rope.ropeSegments[i].deflectionPoints[k].pos);
-      }
-    }
-    energy += GLOBALS.rope.currentElasticEnergy;
-    GLOBALS.maxy = Math.max(GLOBALS.maxy, GLOBALS.climber.pos.y);
-    GLOBALS.miny = Math.min(GLOBALS.miny, GLOBALS.climber.pos.y);
-    GLOBALS.maxy = Math.max(GLOBALS.maxy, GLOBALS.anchor.pos.y);
-    GLOBALS.miny = Math.min(GLOBALS.miny, GLOBALS.anchor.pos.y);
-    GLOBALS.maxe = Math.max(GLOBALS.maxe, energy);
-    GLOBALS.mine = Math.min(GLOBALS.mine, energy);
     snapshots.push({
-      positions: ss, deflectionPoints: ss_defl, cTime: t, timeDelay: 0, maxStretchingForce: GLOBALS.rope.maxStretchingForce,
-      expectedForce: GLOBALS.expectedForce, climberGravity: GLOBALS.climber.mass * GRAVITY_OF_EARTH,
-      maxSpeed: GLOBALS.rope.maxEndSpeed, maxStretchingFClimber: GLOBALS.rope.maxClimberForce,
-      maxStretchingFBelayer: GLOBALS.rope.maxBelayerForce, forces: ss_forc,
-      maxClimberForce: GLOBALS.climber.maxForce,
-      maxBelayerForce: GLOBALS.anchor.maxForce,
-      currentStretchingForce: GLOBALS.rope.currentStretchingForce,
-      currentClimberForce: GLOBALS.climber.currentAveragedForce,
-      currentBelayerForce: GLOBALS.anchor.currentAveragedForce,
-      climberY: GLOBALS.climber.pos.y,
-      belayerY: GLOBALS.anchor.pos.y,
-      topDrawY: GLOBALS.deflectionPoint.pos.y,
-      energy: energy
-     });
+      time: t,
+      bodies: [
+        GLOBALS.rope.captureSnapshot(),
+        GLOBALS.deflectionPoint.captureSnapshot(),
+        GLOBALS.anchor.captureSnapshot(),
+        GLOBALS.climber.captureSnapshot()
+      ]
+    });
+    // const ss = [];
+    // const ss_defl = [];
+    // const ss_forc = [];
+    // let energy = 0;
+    // if (GLOBALS.rope.bodies[0].mass != GLOBALS.anchorMass) throw new Error('anchor / belayer changed weight');
+    // if (GLOBALS.rope.bodies[GLOBALS.rope.bodies.length - 1].mass != GLOBALS.climberMass) throw new Error('climber changed weight');
+    // for (let i = 0; i < GLOBALS.rope.bodies.length; i++) {
+    //   energy += GLOBALS.rope.bodies[i].pos.y * GLOBALS.rope.bodies[i].mass * GRAVITY_OF_EARTH;
+    //   energy += 0.5 * GLOBALS.rope.bodies[i].velocity.normsq() * GLOBALS.rope.bodies[i].mass;
+    //   ss.push(GLOBALS.rope.bodies[i].pos);
+    //   ss_forc.push(GLOBALS.rope.bodies[i].appliedForces);
+    //   ss_defl.push([]);
+    //   if (i+1 < GLOBALS.rope.bodies.length) {
+    //     for (let k = 0; k < GLOBALS.rope.ropeSegments[i].deflectionPoints.length; k++)
+    //       ss_defl[i].push(GLOBALS.rope.ropeSegments[i].deflectionPoints[k].pos);
+    //   }
+    // }
+    // energy += GLOBALS.rope.currentElasticEnergy;
+    // GLOBALS.maxy = Math.max(GLOBALS.maxy, GLOBALS.climber.pos.y);
+    // GLOBALS.miny = Math.min(GLOBALS.miny, GLOBALS.climber.pos.y);
+    // GLOBALS.maxy = Math.max(GLOBALS.maxy, GLOBALS.anchor.pos.y);
+    // GLOBALS.miny = Math.min(GLOBALS.miny, GLOBALS.anchor.pos.y);
+    // GLOBALS.maxe = Math.max(GLOBALS.maxe, energy);
+    // GLOBALS.mine = Math.min(GLOBALS.mine, energy);
+    // snapshots.push({
+    //   positions: ss, deflectionPoints: ss_defl, cTime: t, timeDelay: 0, maxStretchingForce: GLOBALS.rope.maxStretchingForce,
+    //   expectedForce: GLOBALS.expectedForce, climberGravity: GLOBALS.climber.mass * GRAVITY_OF_EARTH,
+    //   maxSpeed: GLOBALS.rope.maxEndSpeed, maxStretchingFClimber: GLOBALS.rope.maxClimberForce,
+    //   maxStretchingFBelayer: GLOBALS.rope.maxBelayerForce, forces: ss_forc,
+    //   maxClimberForce: GLOBALS.climber.maxForce,
+    //   maxBelayerForce: GLOBALS.anchor.maxForce,
+    //   currentStretchingForce: GLOBALS.rope.currentStretchingForce,
+    //   currentClimberForce: GLOBALS.climber.currentAveragedForce,
+    //   currentBelayerForce: GLOBALS.anchor.currentAveragedForce,
+    //   climberY: GLOBALS.climber.pos.y,
+    //   belayerY: GLOBALS.anchor.pos.y,
+    //   topDrawY: GLOBALS.deflectionPoint.pos.y,
+    //   energy: energy
+    //  });
   };
 
   if (prevSnapshots.length == 0) {
@@ -164,6 +177,18 @@ function precalculatePositions(targetTime, FPS = 40, prevSnapshots = [], stepsDo
 }
 
 function drawRope(infoObj, snapshots) {
+  const devpr = window.devicePixelRatio || 1;
+  const cvs = document.getElementById('main-canvas-container');
+  cvs.style.width = `${GLOBALS.canvasWidth / devpr}px`;
+  cvs.style.height = `${GLOBALS.canvasHeight / devpr}px`;
+
+  if (typeof GLOBALS.graphicsManager === 'undefined') {
+    GLOBALS.graphicsManager = new WorldGraphics(cvs);
+  }
+  GLOBALS.graphicsManager.drawSnapshot(infoObj.bodies, infoObj.time);
+
+  return;
+
   const {
     positions, deflectionPoints, forces, cTime, timeDelay, maxStretchingForce, expectedForce, climberGravity, maxSpeed,
     maxStretchingFClimber, maxStretchingFBelayer, maxClimberForce, maxBelayerForce, energy

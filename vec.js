@@ -108,7 +108,7 @@ class V {
 
   /**
    * The three coordinates of this vector as an array
-   * @type {number[]}
+   * @type {[number, number, number]}
    */
   get arr() {
     return [this.x, this.y, this.z];

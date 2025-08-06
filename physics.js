@@ -2,6 +2,47 @@
 // This script does not assume anything about the direction of gravity
 // other parts of the code assume that gravity pulls along the negative y-axis
 
+/**
+ * @typedef {Object} ForceSnapshot snapshot of the forces applied to a body at a given time
+ * @property {number} current the current force (in Newton) applied to a given body
+ * @property {number} [average] the averaged force (in Newton) applied to a given body over the last averageWindow seconds
+ * @property {number} [averageWindow] the length of the force averaging window in seconds
+ */
+
+/**
+ * @typedef {Object} StateSnapshot snapshot of the visible state of a body at a given time (excludes e.g. speed or acceleration)
+ * @property {[number, number, number]} [position] the current position of a given body (in 3D, coordinates are in meters); available for type 'point mass'
+ * @property {[number, number, number][]} [segmentPositions] the current positions of the rope segments (in 3D, coordinates are in meters); available for type 'rope'
+ * @property {string} [color] a CSS string giving the color of the body
+ * @property {string} [radius] the radius used for drawing the point mass (in meters), or the radius used for drawing segment joints of a rope
+ * @property {string} [thickness] the thickness of the rope, used for drawing purposes (in meters)
+ */
+
+/**
+ * @typedef {Object} MaximaSnapshot snapshot of running maxima statistics of a body (e.g. maximal speed, maximal applied force up to current time point)
+ * @property {number} [speed] the running maximal speed (in m/s) (maximal speed of the climber's rope end in case of a rope)
+ * @property {number} [force] the running maximal force (in Newton) applied to the body (stretching force in case of a rope)
+ * @property {number} [climberStretching] the running maximal stretching force (in Newton) at the climber's end of the rope
+ * @property {number} [belayerStretching] the running maximal stretching force (in Newton) at the belayer's end of the rope
+ */
+
+/**
+ * @typedef {Object} EnergySnapshot snapshot of the energy stored in a body
+ * @property {number} kinetic the kinetic energy (in Joule)
+ * @property {number} potential the potential energy (in Joule)
+ * @property {number} [elastic] the elastic energy (in Joule) stored in a rope due to stretching
+ */
+
+/**
+ * @typedef {Object} ObjectSnapshot snapshot of the state of a body at a given time
+ * @property {'point mass'|'rope'} type the type of the body, can be used e.g. to draw the body appropriately
+ * @property {string} id a unique string identifying this body
+ * @property {ForceSnapshot} forces the current forces applied to the body
+ * @property {StateSnapshot} visibleState the current visible state of the body (excludes e.g. speed or acceleration)
+ * @property {EnergySnapshot} energy the current energy stored in the body
+ * @property {MaximaSnapshot} [runningMaxima] some running maxima statistics (e.g. running maximal speed, etc.)
+ */
+
 /** The physics world contains all objects which are relevant to the physics simulation */
 const PHYSICS_WORLD = {
   /** @type {Body[]} an array containing all bodies of the physics world */
@@ -11,7 +52,9 @@ const PHYSICS_WORLD = {
   /** @type {boolean} whether to display warnings when rope segments are too short compared to how far they move in a single simulation frame */
   warningsShortRopeSegments: true,
   /** @type {number} constant which is used for comparisons against zero */
-  EPS: 1e-10
+  EPS: 1e-10,
+  /** @type {number} counter used for generating unique body ids */
+  idCounter: 0
 };
 
 /**
@@ -27,7 +70,12 @@ class Rope {
    * @param {Body[]} [deflectionPoints] an arbitrary number of deflection points (carabiners) through which the rope should pass.
    *                                    The rope passes through the deflection points in the order in which they are given, starting from end1 of the rope.
    */
-  constructor(length = 5, segments = 1, end1 = new Body(0, 0, 0, 0), end2 = new Body(0, -length, 0, 70), ...deflectionPoints) {
+  constructor(length = 5, segments = 1, end1 = new Body(0, 0, 0, 0, 'anchor'), end2 = new Body(0, -length, 0, 70, 'climber'), ...deflectionPoints) {
+    /** @type {number} unique body id */
+    this.id = PHYSICS_WORLD.idCounter;
+    PHYSICS_WORLD.idCounter++;
+    /** @type {string} a name for the body */
+    this.name = 'rope';
     /** @type {number} the length of the unstretched rope in meters */
     this.restLength = length;
     /** @type {number} the weight of the entire rope in kilograms */
@@ -83,7 +131,7 @@ class Rope {
         const dSegFac = (partialRopeLen - (lenArrIdx == 0 ? 0 : lenArr[lenArrIdx-1])) / dSegLen; // fraction of that section at which the end of the current rope segment should lie
         // create new body at the end of the current deflection point
         this.bodies.push(new Body(...deflPts[lenArrIdx].pos.times(1 - dSegFac).plus(deflPts[lenArrIdx+1].pos.times(dSegFac)).arr,
-          segmentMass * (1 + ((i == 1) ? 0.5 : 0) + ((i == segments-1) ? 0.5 : 0)))); // body should have the mass of one rope segment; additional mass at beginning and end of rope because end1 and end2 bodies carry no rope mass
+          segmentMass * (1 + ((i == 1) ? 0.5 : 0) + ((i == segments-1) ? 0.5 : 0)), 'rope joint')); // body should have the mass of one rope segment; additional mass at beginning and end of rope because end1 and end2 bodies carry no rope mass
       } else { // this is the last segment => insert end2 as last body in the rope
         this.bodies.push(end2);
       }
@@ -126,6 +174,13 @@ class Rope {
     this.maxBelayerForce = this.currentStretchingForce;
     /** @type {number} running maximum of the velocity of the climber's end of the rope (end2) */
     this.maxEndSpeed = end2.velocity.norm();
+    
+    /** @type {string} CSS color used for drawing this rope */
+    this.drawingColor = 'black';
+    /** @type {number} thickness of the rope (in meters) used for drawing this rope */
+    this.drawingThickness = 0.03; // default is 3 cm
+    /** @type {number} radius of the rope segment joints (in meters) used for drawing this rope */
+    this.drawingRadius = 0.03; // default is 3 cm
   }
 
   /**
@@ -231,6 +286,69 @@ class Rope {
     for (let i = 0; i < this.ropeSegments.length; i++)
       i = this.ropeSegments[i].postprocessTimeStepB();
   }
+  
+  /**
+   * The current kinetic energy of the entire rope (in Joule)
+   * @type {number}
+   */
+  get currentKineticEnergy() {
+    let energy = 0;
+    for (let i = 0; i < this.bodies.length; i++)
+      energy += this.bodies[i].currentKineticEnergy;
+    return energy;
+  }
+
+  /**
+   * The current potential energy of the entire rope (in Joule); depends on the vector supplied to the applyGravity function
+   * @type {number}
+   */
+  get currentPotentialEnergy() {
+    let energy = 0;
+    for (let i = 0; i < this.bodies.length; i++)
+      energy += - this.bodies[i].currentPotentialEnergy;
+    return energy;
+  }
+
+  /**
+   * Capture information about the current state of the rope (note: the energy snapshot includes kinetic and potential energy of belayer and climber)
+   * @return {ObjectSnapshot} a snapshot of the current state of the rope
+   */
+  captureSnapshot() {
+    const segPos = [];
+    for (let i = 0; i < this.ropeSegments.length; i++) {
+      segPos.push(this.ropeSegments[i].bodyA.pos.arr);
+      if (this.ropeSegments[i].deflectionPoints.length > 0) {
+        for (const dPoint of this.ropeSegments[i].deflectionPoints)
+          segPos.push(dPoint.pos.arr);
+      }
+      if (i == this.ropeSegments.length - 1)
+        segPos.push(this.ropeSegments[i].bodyB.pos.arr);
+    }
+    return {
+      type: 'rope',
+      id: `${this.name} [${this.id}]`,
+      visibleState: {
+        segmentPositions: segPos,
+        color: this.drawingColor,
+        radius: this.drawingRadius,
+        thickness: this.drawingThickness
+      },
+      forces: {
+        current: this.currentStretchingForce
+      },
+      energy: {
+        kinetic: this.currentKineticEnergy,
+        potential: this.currentPotentialEnergy,
+        elastic: this.currentElasticEnergy
+      },
+      runningMaxima: {
+        speed: this.maxEndSpeed,
+        force: this.maxStretchingForce,
+        climberStretching: this.maxClimberForce,
+        belayerStretching: this.maxBelayerForce
+      }
+    };
+  }
 }
 
 /**
@@ -252,6 +370,9 @@ class RopeSegment {
    * @param {number} internalDamping damping coefficient for internal friction, no direct physical background
    */
   constructor(end1, end2, mass, restLength, minRLength, maxRLength, defaultRLength, elasticityConstant, dampingCoefficient, internalDamping) {
+    /** @type {number} unique body id */
+    this.id = PHYSICS_WORLD.idCounter;
+    PHYSICS_WORLD.idCounter++;
     /** @type {Body} the body at one end of the segment/spring (the body closer to the belayer's end of the rope) */
     this.bodyA = end1;
     /** @type {Body} the body at the other end of the segment/spring (the body closer to the climber's end of the rope) */
@@ -554,7 +675,8 @@ class RopeSegment {
           this.restLength -= this.defaultRestLength;
           const nBody = new Body(
             ...this.bodyA.pos.times(1-frac).plus(this.deflectionPoints[0].pos.times(frac)).arr,
-            ((this.previousSegment === null) ? 1 : 0.5) * newMass + ((this.followingSegment === null) ? 1 : 0.5) * this.mass
+            ((this.previousSegment === null) ? 1 : 0.5) * newMass + ((this.followingSegment === null) ? 1 : 0.5) * this.mass,
+            'rope joint'
           ); // create new body connecting this segment and the one which will be inserted
           nBody.velocity = this.bodyA.velocity; // the new body should have the same speed as the old end of this segment
           if (this.previousSegment !== null) this.bodyA.mass = 0.5 * newMass + 0.5 * this.previousSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)
@@ -576,7 +698,8 @@ class RopeSegment {
           this.restLength -= this.defaultRestLength;
           const nBody = new Body(
             ...this.bodyB.pos.times(1-frac).plus(this.deflectionPoints[this.deflectionPoints.length-1].pos.times(frac)).arr,
-            ((this.followingSegment === null) ? 1 : 0.5) * newMass + ((this.previousSegment === null) ? 1 : 0.5) * this.mass
+            ((this.followingSegment === null) ? 1 : 0.5) * newMass + ((this.previousSegment === null) ? 1 : 0.5) * this.mass,
+            'rope joint'
           ); // create new body connecting this segment and the one which will be inserted
           nBody.velocity = this.bodyB.velocity; // the new body should have the same speed as the old end of this segment
           if (this.followingSegment !== null) this.bodyB.mass = 0.5 * newMass + 0.5 * this.followingSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)
@@ -609,9 +732,15 @@ class Body {
    * @param {number} [y=0] y coordinate of the new point mass (in meters)
    * @param {number} [z=0] z coordinate of the new point mass (in meters)
    * @param {number} [mass=0] mass (in kilograms) of the new point mass (default is 0, which means that the body is fixed and cannot move)
+   * @param {string} [name] a name for the created body
    */
-  constructor(x = 0, y = 0, z = 0, mass = 0) {
+  constructor(x = 0, y = 0, z = 0, mass = 0, name = 'body') {
     // mass 0: body cannot move
+    /** @type {number} unique body id */
+    this.id = PHYSICS_WORLD.idCounter;
+    PHYSICS_WORLD.idCounter++;
+    /** @type {string} a name for the body */
+    this.name = name;
     /** @type {V} current position of the body (in 3D and in meters) */
     this.pos = new V(x, y, z);
     /** @type {V} current velocity of the body (in m/s) */
@@ -641,6 +770,11 @@ class Body {
     /** @type {number} length (in seconds) of the averaging window used to average forces applied to the body */
     this.forceAvgWindow = 0.05; // average force over 50 ms to get a more "stable" maximum force
     PHYSICS_WORLD.bodies.push(this); // add body to physcics world (important to ensure that the body meets barrier constraints)
+
+    /** @type {string} CSS color used for drawing this body */
+    this.drawingColor = 'black';
+    /** @type {number} radius (in meters) used for drawing this body */
+    this.drawingRadius = 0.07; // default is 7 cm
   }
 
   /**
@@ -664,6 +798,8 @@ class Body {
    */
   applyGravity(f) {
     this.appliedForces = this.appliedForces.plus(f.times(this.mass));
+    /** @type {V} the gravity acceleration vector in m / s^2 used during the last applyGravity call */
+    this.lastGravityVector = f;
   }
 
   /**
@@ -699,6 +835,49 @@ class Body {
     if (clearForces) this.clearForces();
     if (!applyChanges)
       return this.velocity.times(delta); // return displacement if the displacement was not actually applied
+  }
+  
+  /**
+   * The current kinetic energy of the body (in Joule)
+   * @type {number}
+   */
+  get currentKineticEnergy() {
+    return 0.5 * this.velocity.normsq() * this.mass;
+  }
+
+  /**
+   * The current potential energy of the body (in Joule); depends on the vector supplied to the applyGravity function
+   * @type {number}
+   */
+  get currentPotentialEnergy() {
+    if (typeof this.lastGravityVector === 'undefined')
+      return 0;
+    return - this.pos.dot(this.lastGravityVector) * this.mass;
+  }
+
+  /**
+   * Capture information about the current state of the body
+   * @return {ObjectSnapshot} a snapshot of the current state of the body
+   */
+  captureSnapshot() {
+    return {
+      type: 'point mass',
+      id: `${this.name} [${this.id}]`,
+      visibleState: {
+        position: this.pos.arr,
+        color: this.drawingColor,
+        radius: this.drawingRadius
+      },
+      forces: {
+        current: this.appliedForces.norm(),
+        average: this.currentAveragedForce,
+        averageWindow : this.forceAvgWindow
+      },
+      energy: {
+        kinetic: this.currentKineticEnergy,
+        potential: this.currentPotentialEnergy
+      }
+    };
   }
 }
 

@@ -11,12 +11,14 @@
   <!-- <link rel="stylesheet" href="XXX.css"> -->
   <script src="vec.js"></script>
   <script src="physics.js"></script>
+  <script src="graphics.js"></script>
   <script src="script.js"></script>
 </head>
 
 <body onLoad="main();">
   <div id="progress_info"><span id="pinfo_text">Please wait&hellip;</span> <input type="button" value="Stop" onclick="GLOBALS.interruptSimulation = true;" /></div>
-  <canvas id="main-canvas" width="1" height="1"></canvas>
+  <!-- <canvas id="main-canvas" width="1" height="1"></canvas> -->
+  <div id="main-canvas-container"></div>
   <canvas id="force-canvas" width="1" height="1"></canvas>
 </body>
 </html>
