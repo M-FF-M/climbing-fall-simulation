@@ -48,10 +48,10 @@ function main() {
     GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber);
   else
     GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber, GLOBALS.deflectionPoint);
-  GLOBALS.rope.drawingColor = 'rgb(241, 160, 45)';
-  GLOBALS.deflectionPoint.drawingColor = 'rgb(52, 90, 93)';
-  GLOBALS.climber.drawingColor = 'rgb(151, 95, 96)';
-  GLOBALS.anchor.drawingColor = 'rgb(77, 136, 78)';
+  GLOBALS.rope.drawingColor = new Color(241, 160, 45);
+  GLOBALS.deflectionPoint.drawingColor = new Color(52, 90, 93);
+  GLOBALS.climber.drawingColor = new Color(151, 95, 96);
+  GLOBALS.anchor.drawingColor = new Color(77, 136, 78);
   GLOBALS.expectedForce = GLOBALS.climber.mass * GRAVITY_OF_EARTH
     + Math.sqrt(GLOBALS.climber.mass * GRAVITY_OF_EARTH * GLOBALS.climber.mass * GRAVITY_OF_EARTH
                 + 2 * GLOBALS.climber.mass * GRAVITY_OF_EARTH * GLOBALS.fallFactor / GLOBALS.rope.elasticityConstant);

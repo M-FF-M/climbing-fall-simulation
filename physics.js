@@ -13,7 +13,7 @@
  * @typedef {Object} StateSnapshot snapshot of the visible state of a body at a given time (excludes e.g. speed or acceleration)
  * @property {[number, number, number]} [position] the current position of a given body (in 3D, coordinates are in meters); available for type 'point mass'
  * @property {[number, number, number][]} [segmentPositions] the current positions of the rope segments (in 3D, coordinates are in meters); available for type 'rope'
- * @property {string} [color] a CSS string giving the color of the body
+ * @property {Color} [color] the color of the body
  * @property {string} [radius] the radius used for drawing the point mass (in meters), or the radius used for drawing segment joints of a rope
  * @property {string} [thickness] the thickness of the rope, used for drawing purposes (in meters)
  */
@@ -175,8 +175,8 @@ class Rope {
     /** @type {number} running maximum of the velocity of the climber's end of the rope (end2) */
     this.maxEndSpeed = end2.velocity.norm();
     
-    /** @type {string} CSS color used for drawing this rope */
-    this.drawingColor = 'black';
+    /** @type {Color} color used for drawing this rope */
+    this.drawingColor = new Color(0, 0, 0);
     /** @type {number} thickness of the rope (in meters) used for drawing this rope */
     this.drawingThickness = 0.03; // default is 3 cm
     /** @type {number} radius of the rope segment joints (in meters) used for drawing this rope */
@@ -771,8 +771,8 @@ class Body {
     this.forceAvgWindow = 0.05; // average force over 50 ms to get a more "stable" maximum force
     PHYSICS_WORLD.bodies.push(this); // add body to physcics world (important to ensure that the body meets barrier constraints)
 
-    /** @type {string} CSS color used for drawing this body */
-    this.drawingColor = 'black';
+    /** @type {Color} color used for drawing this body */
+    this.drawingColor = new Color(0, 0, 0);
     /** @type {number} radius (in meters) used for drawing this body */
     this.drawingRadius = 0.07; // default is 7 cm
   }

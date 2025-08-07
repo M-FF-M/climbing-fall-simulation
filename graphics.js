@@ -8,19 +8,11 @@ class WorldGraphics {
    * @param {HTMLElement} boundingElement an element into which the scene should be drawn
    */
   constructor(boundingElement) {
-    boundingElement.style.contain = 'size';
-    boundingElement.innerHTML = '';
-    /** @type {HTMLCanvasElement} the canvas that will be used for drawing */
-    this.canvas = document.createElement('canvas');
-    boundingElement.appendChild(this.canvas);
-    /** @type {HTMLElement} the element into which the scene should be drawn */
-    this.boundingElement = boundingElement;
-    /** @type {ResizeObserver} observer listening for bounding element size canges */
-    this.resizeObserver = new ResizeObserver(entries => this.processSizeChange(entries));
-    this.resizeObserver.observe(boundingElement, { box: 'content-box' });
-    /** @type {number} the width of the canvas in pixels (change only using the adaptSize method!) */
+    /** @type {ZoomableCanvas} the zoomable canvas onto which to draw */
+    this.can = new ZoomableCanvas(boundingElement, () => this.canvasChange())
+    /** @type {number} the width of the canvas in pixels (change only using the canvasChange method!) */
     this.width = 0;
-    /** @type {number} the height of the canvas in pixels (change only using the adaptSize method!) */
+    /** @type {number} the height of the canvas in pixels (change only using the canvasChange method!) */
     this.height = 0;
     /** @type {ObjectSnapshot[]|null} the current snapshot to draw */
     this.currentSnapshot = null;
@@ -31,43 +23,16 @@ class WorldGraphics {
   }
 
   /**
-   * Process a size change of the bounding element
-   * @param {ResizeObserverEntry[]} entries the entries returned by the resize observer
+   * Should be called when zoom level, shift, or size of the zoomable canvas change
    */
-  processSizeChange(entries) {
-    for (const entry of entries) {
-      if (entry.target === this.boundingElement) {
-        if (entry.contentBoxSize) {
-          if (Array.isArray(entry.contentBoxSize))
-            this.adaptSize(entry.contentBoxSize[0].inlineSize, entry.contentBoxSize[0].blockSize);
-          else
-            this.adaptSize(entry.contentBoxSize.inlineSize, entry.contentBoxSize.blockSize);
-        } else {
-          this.adaptSize(entry.contentRect.width, entry.contentRect.height);
-        }
-        break;
-      }
-    }
-  }
-
-  /**
-   * Adapt the canvas size
-   * @param {number} width the desired width in pixels
-   * @param {number} height the desired height in pixels
-   */
-  adaptSize(width, height) {
-    const dpr = window.devicePixelRatio || 1;
-    this.width = width * dpr;
-    this.height = height * dpr;
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
-    this.canvas.style.width = `${width}px`;
-    this.canvas.style.height = `${height}px`;
+  canvasChange() {
+    this.width = this.can.width;
+    this.height = this.can.height;
     if (typeof this.xOrigin === 'undefined') {
       /** @type {number} origin in the x-direction in pixels */
       this.xOrigin = this.width / 2;
       /** @type {number} origin in the y-direction in pixels */
-      this.yOrigin = this.height / 2 + 5 * this.scale; // y origin is placed 5 meters above the ground
+      this.yOrigin = this.height / 2 - 5 * this.scale; // ground is placed 5 meters below the center of the canvas
     }
     this.draw();
   }
@@ -92,15 +57,15 @@ class WorldGraphics {
    */
   p(x, y, z) {
     if (x instanceof V) {
-      y = x.y;
       z = x.z;
+      y = x.y;
       x = x.x;
     } else if (Array.isArray(x)) {
-      y = x[1];
       z = x[2];
+      y = x[1];
       x = x[0];
     }
-    return [ this.xOrigin + x * this.scale, this.yOrigin - y * this.scale ];
+    return this.can.p(x, y, this.scale, this.xOrigin, this.yOrigin);
   }
 
   /**
@@ -108,55 +73,56 @@ class WorldGraphics {
    * @param {CanvasRenderingContext2D} ctx the canvas context onto which to draw
    * @param {V} normal the normal vector of the barrier, which must have length 1 and should point away from the half-space which is blocked
    * @param {number} shift the dot product of the normal vector and a point in the barrier
-   * @param {string} [color] the barrier color
+   * @param {Color} [color] the barrier color
    * @param {number} [thickness] the barrier thickness (in meters)
    */
-  drawBarrier(ctx, normal, shift, color = 'rgb(62, 43, 62)', thickness = 0.1) {
+  drawBarrier(ctx, normal, shift, color = new Color(62, 43, 62), thickness = 0.1) {
+    const can = this.can;
+    // bounding box for barriers
+    const leftBoundary = -10; // left boundary: 10 meters to the left of origin
+    const rightBoundary = 10; // right boundary: 10 meters to the right of origin
+    const bottomBoundary = -2; // bottom boundary: 2 meters below origin
+    const topBoundary = 20; // top boundary: 20 meters above origin
     if (Math.abs(normal.dot(new V(0, 1, 0))) == 1) {
       const ycoord = shift * normal.dot(new V(0, 1, 0));
       ctx.beginPath();
-      ctx.moveTo(0, this.yOrigin - ycoord*this.scale);
-      ctx.lineTo(this.width, this.yOrigin - ycoord*this.scale);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.ceil(thickness * this.scale);
+      ctx.moveTo(...this.p(leftBoundary, ycoord, 0));
+      ctx.lineTo(...this.p(rightBoundary, ycoord, 0));
+      ctx.strokeStyle = color.toString();
+      ctx.lineWidth = Math.ceil(can.l(thickness, this.scale));
       ctx.stroke();
       ctx.closePath();
     } else if (normal.dot(new V(0, 1, 0)) == 0) {
       const xcoord = shift * normal.dot(new V(1, 0, 0));
       ctx.beginPath();
-      ctx.moveTo(this.xOrigin + xcoord*this.scale, 0);
-      ctx.lineTo(this.xOrigin + xcoord*this.scale, this.height);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.ceil(thickness * this.scale);
+      ctx.moveTo(...this.p(xcoord, bottomBoundary, 0));
+      ctx.lineTo(...this.p(xcoord, topBoundary, 0));
+      ctx.strokeStyle = color.toString();
+      ctx.lineWidth = Math.ceil(can.l(thickness, this.scale));
       ctx.stroke();
       ctx.closePath();
     } else {
       const normalLR = new V(1, 0, 0);
-      const leftShift = -this.xOrigin / this.scale;
-      const rightShift = (this.width - this.xOrigin) / this.scale;
       const normalTB = new V(0, 1, 0);
-      const topShift = this.yOrigin / this.scale;
-      const bottomShift = -(this.height - this.yOrigin) / this.scale;
       const bndCoords = [];
-      for (const [shiftB, normalB, coord, otherCoord] of [
-            [leftShift, normalLR, 'y', 0], [rightShift, normalLR, 'y', this.width], [topShift, normalTB, 'x', 0], [bottomShift, normalTB, 'x', this.height]
+      for (const [shiftB, normalB, coord] of [
+            [leftBoundary, normalLR, 'y'], [rightBoundary, normalLR, 'y'], [bottomBoundary, normalTB, 'x'], [topBoundary, normalTB, 'x']
           ]) {
         const [lineDir, pointOnLine] = calculatePlaneIntersection(normal, shift, normalB, shiftB);
-        const coordVal = ((coord == 'x') ? pointOnLine.x : pointOnLine.y) * this.scale;
-        const graphCoord = (coord == 'x') ? this.xOrigin + coordVal : this.yOrigin - coordVal;
-        if (coord == 'x' && graphCoord >= 0 && graphCoord <= this.width) {
-          bndCoords.push([graphCoord, otherCoord]);
-        } else if (coord == 'y' && graphCoord >= 0 && graphCoord <= this.height) {
-          bndCoords.push([graphCoord, otherCoord]);
+        const graphCoord = (coord == 'x') ? pointOnLine.x : pointOnLine.y;
+        if (coord == 'x' && graphCoord >= -10 && graphCoord <= 10) {
+          bndCoords.push([graphCoord, shiftB]);
+        } else if (coord == 'y' && graphCoord >= -2 && graphCoord <= 20) {
+          bndCoords.push([shiftB, graphCoord]);
         }
       }
       if (bndCoords.length > 1) {
         ctx.beginPath();
-        ctx.moveTo(bndCoords[0][0], bndCoords[0][1]);
+        ctx.moveTo(...this.p(bndCoords[0][0], bndCoords[0][1], 0));
         for (let i = 1; i < bndCoords.length; i++)
-          ctx.lineTo(bndCoords[i][0], bndCoords[i][1]);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = Math.ceil(thickness * this.scale);
+          ctx.lineTo(...this.p(bndCoords[i][0], bndCoords[i][1], 0));
+        ctx.strokeStyle = color.toString();
+        ctx.lineWidth = Math.ceil(can.l(thickness, this.scale));
         ctx.stroke();
         ctx.closePath();
       }
@@ -170,8 +136,9 @@ class WorldGraphics {
   drawHeightMarkers(ctx) {
     for (let i = 0; i <= 20; i++) {
       ctx.beginPath();
-      ctx.moveTo(0, this.yOrigin - 0.5 * i*this.scale - 0.5);
-      ctx.lineTo(this.width, this.yOrigin - 0.5 * i*this.scale - 0.5);
+      const ycoord = this.p(0, 0.5 * i, 0)[1];
+      ctx.moveTo(0, ycoord - 0.5);
+      ctx.lineTo(this.width, ycoord - 0.5);
       if (i % 2 == 0)
         ctx.strokeStyle = 'rgb(190, 190, 190)';
       else
@@ -183,7 +150,7 @@ class WorldGraphics {
       ctx.fillStyle = 'black';
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
-      ctx.fillText(`${numToStr(i * 0.5)} m`, 5, this.yOrigin - 0.5 * i*this.scale);
+      ctx.fillText(`${numToStr(i * 0.5)} m`, 5, ycoord);
     }
     ctx.font = '1em Arial';
     ctx.fillStyle = 'black';
@@ -199,23 +166,26 @@ class WorldGraphics {
     if (this.width <= 0 || this.height <= 0 || this.currentSnapshot === null || this.scale <= 0)
       return;
     const w = this.width; const h = this.height;
-    const ctx = this.canvas.getContext('2d');
+    const can = this.can;
+    const ctx = can.ctx;
     ctx.clearRect(0, 0, w, h);
     ctx.lineJoin = 'round';
+
+    can.drawGrid('m', this.scale, this.xOrigin, this.yOrigin);
 
     if (typeof PHYSICS_WORLD === 'object' && typeof PHYSICS_WORLD.barriers !== 'undefined') { // draw barriers
       for (const barrier of PHYSICS_WORLD.barriers)
         this.drawBarrier(ctx, barrier.normal, barrier.shift);
     }
 
-    this.drawHeightMarkers(ctx);
+    // this.drawHeightMarkers(ctx);
 
     for (const objSnap of this.currentSnapshot) { // draw bodies
 
       if (objSnap.type === 'point mass') {
         ctx.beginPath();
-        ctx.arc(...this.p(objSnap.visibleState.position), objSnap.visibleState.radius * this.scale, 0, Math.PI * 2);
-        ctx.fillStyle = objSnap.visibleState.color;
+        ctx.arc(...this.p(objSnap.visibleState.position), can.l(objSnap.visibleState.radius, this.scale), 0, Math.PI * 2);
+        ctx.fillStyle = objSnap.visibleState.color.toString();
         ctx.fill();
         ctx.closePath();
 
@@ -224,15 +194,15 @@ class WorldGraphics {
         ctx.moveTo(...this.p(objSnap.visibleState.segmentPositions[0]));
         for (let i = 1; i < objSnap.visibleState.segmentPositions.length; i++)
           ctx.lineTo(...this.p(objSnap.visibleState.segmentPositions[i]));
-        ctx.strokeStyle = objSnap.visibleState.color;
-        ctx.lineWidth = Math.ceil(objSnap.visibleState.thickness * this.scale);
+        ctx.strokeStyle = objSnap.visibleState.color.toString();
+        ctx.lineWidth = Math.ceil(can.l(objSnap.visibleState.thickness, this.scale));
         ctx.stroke();
         ctx.closePath();
 
         for (let i = 0; i < objSnap.visibleState.segmentPositions.length; i++) {
           ctx.beginPath();
-          ctx.arc(...this.p(objSnap.visibleState.segmentPositions[i]), objSnap.visibleState.radius * this.scale, 0, Math.PI * 2);
-          ctx.fillStyle = objSnap.visibleState.color;
+          ctx.arc(...this.p(objSnap.visibleState.segmentPositions[i]), can.l(objSnap.visibleState.radius, this.scale), 0, Math.PI * 2);
+          ctx.fillStyle = objSnap.visibleState.color.toString();
           ctx.fill();
           ctx.closePath();
         }
