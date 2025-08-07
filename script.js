@@ -21,6 +21,8 @@ const GLOBALS = {
 };
 
 function main() {
+  document.getElementById('progress_info').style.fontFamily = 'Arial';
+
   GLOBALS.startHeight = 6; // height of climber above ground / belay
   GLOBALS.lastDrawHeight = 5; // height of last draw above ground / belay (set to 0 for no deflection point)
   GLOBALS.anchorHeight = 0;

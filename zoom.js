@@ -5,6 +5,17 @@ const SPACING_BOUND_A = Math.log10(2.5);
 const SPACING_BOUND_B = Math.log10(7.5);
 
 /**
+ * Convert the possible childScale inputs for the ZoomableCanvas class into separate x- and y-scales
+ * @param {number|[number, number]} [childScale] the childScale parameter passed to the ZoomableCanvas class
+ * @return {[number, number]} the separate scales for the x- and y-axis
+ */
+function childScaleConverter(childScale) {
+  if (typeof childScale === 'undefined') return [1, 1];
+  else if (typeof childScale === 'number') return [childScale, childScale];
+  else return childScale;
+}
+
+/**
  * A zoomable canvas, which adapt automatically to the parent object size
  */
 class ZoomableCanvas {
@@ -63,8 +74,14 @@ class ZoomableCanvas {
       if (this.mousePressed)
         this.processMove(dx, dy);
     });
-    /** @type {number} desired space between two grid lines in pixels */
+    /** @type {number} desired space between two grid lines in (CSS) pixels (i.e. not canvas pixels, which can be different, see property pxToCanPx) */
     this.desiredGridSpace = 50;
+    /** @type {boolean} whether the grid legend for the y-axis should be placed on the left */
+    this.gridLegendLeft = true;
+    /** @type {boolean} whether the grid legend for the x-axis should be placed on the bottom  */
+    this.gridLegendBelow = true;
+    /** @type {number} how to convert CSS pixels to canvas pixels (can be necessary due to e.g. zoomed-in screens, see device pixel ratio) */
+    this.pxToCanPx = 1;
   }
 
   /**
@@ -96,11 +113,11 @@ class ZoomableCanvas {
     let scrollAmountPixels = evt.deltaY;
     if (evt.deltaMode == 1) scrollAmountPixels *= 10;
     if (evt.deltaMode == 2) scrollAmountPixels *= 100;
-    const [mX, mY] = this.r(this.mouseX, this.mouseY, -1);
+    const [mX, mY] = this.r(this.mouseX * this.pxToCanPx, this.mouseY * this.pxToCanPx, -1);
     this.scale *= Math.exp(-scrollAmountPixels / 500);
     const [nmX, nmY] = this.p(mX, mY, -1);
-    this.xOrigin += this.mouseX - nmX;
-    this.yOrigin += this.mouseY - nmY;
+    this.xOrigin += this.mouseX * this.pxToCanPx - nmX;
+    this.yOrigin += this.mouseY * this.pxToCanPx - nmY;
     this.changeCallback();
   }
 
@@ -110,8 +127,8 @@ class ZoomableCanvas {
    * @param {number} dy the amount the mouse moved in the y-direction (in pixels)
    */
   processMove(dx, dy) {
-    this.xOrigin -= dx;
-    this.yOrigin -= dy;
+    this.xOrigin -= dx * this.pxToCanPx;
+    this.yOrigin -= dy * this.pxToCanPx;
     this.changeCallback();
   }
 
@@ -122,9 +139,10 @@ class ZoomableCanvas {
    */
   adaptSize(width, height) {
     const dpr = window.devicePixelRatio || 1;
-    if (Math.abs(this.width - width * dpr) > 0.4 || Math.abs(this.height - height * dpr) > 0.4) {
-      this.width = width * dpr;
-      this.height = height * dpr;
+    if (Math.abs(dpr - this.pxToCanPx) > 1e-4 || Math.abs(this.width - width * dpr) > 0.4 || Math.abs(this.height - height * dpr) > 0.4) {
+      this.pxToCanPx = dpr;
+      this.width = width * this.pxToCanPx;
+      this.height = height * this.pxToCanPx;
       this.canvas.width = this.width;
       this.canvas.height = this.height;
       this.canvas.style.width = `${width}px`;
@@ -137,7 +155,7 @@ class ZoomableCanvas {
    * Compute the canvas coordinates for a given pair of (x,y)-coordinates
    * @param {number|[number, number]} x the x coordinate or the pair of coordinates (if the pair is given, you have to skip the y parameter)
    * @param {number} [y] the y coordinate
-   * @param {number} [childScale] the internal scale of the child element using this canvas. If set to any value <0, the (x,y)-coordinates are assumed to be in the system of this parent element, instead of in the system of the child.
+   * @param {number|[number, number]} [childScale] the internal scale of the child element using this canvas (pass an array for separate x- and y-scales). If set to any value <0, the (x,y)-coordinates are assumed to be in the system of this parent element, instead of in the system of the child.
    * @param {number|[number, number]} [childXOrigin] the internal origin of the child in pixels the x-direction (from the lower left corner of the canvas) (or the pair for x- and y-direction)
    * @param {number} [childYOrigin] the internal origin of the child in pixels in the y-direction (from the lower left corner of the canvas)
    * @return {[number, number]} the final corresponding (x,y)-coordinates on the canvas, which may change according to user actions such as zooming or panning
@@ -154,14 +172,14 @@ class ZoomableCanvas {
       childYOrigin = childXOrigin[1];
       childXOrigin = childXOrigin[0];
     }
-    if (typeof childScale === 'undefined') childScale = 1;
+    const [childScaleX, childScaleY] = childScaleConverter(childScale);
     if (typeof childXOrigin === 'undefined') childXOrigin = 0;
     if (typeof childYOrigin === 'undefined') childYOrigin = this.height;
     else childYOrigin = this.height - childYOrigin;
-    if (childScale < 0)
+    if (childScaleX < 0 || childScaleY < 0)
       return [ this.xOrigin + x * this.scale, this.yOrigin + y * this.scale ];
-    const childX = childXOrigin + x * childScale;
-    const childY = childYOrigin - y * childScale;
+    const childX = childXOrigin + x * childScaleX;
+    const childY = childYOrigin - y * childScaleY;
     return [ this.xOrigin + childX * this.scale, this.yOrigin + childY * this.scale ];
   }
 
@@ -169,7 +187,7 @@ class ZoomableCanvas {
    * Compute the reverse of projecting a coordinate pair onto the canvas
    * @param {number|[number, number]} x the x coordinate on the canvas or the pair of coordinates (if the pair is given, you have to skip the y parameter)
    * @param {number} [y] the y coordinate on the canvas
-   * @param {number} [childScale] the internal scale of the child element using this canvas. If set to any value <0, the coordinates in the system of this parent element are given, instead of in the system of the child.
+   * @param {number|[number, number]} [childScale] the internal scale of the child element using this canvas (pass an array for separate x- and y-scales). If set to any value <0, the coordinates in the system of this parent element are given, instead of in the system of the child.
    * @param {number|[number, number]} [childXOrigin] the internal origin of the child in pixels the x-direction (from the lower left corner of the canvas) (or the pair for x- and y-direction)
    * @param {number} [childYOrigin] the internal origin of the child in pixels in the y-direction (from the lower left corner of the canvas)
    * @return {[number, number]} the final corresponding (x,y)-coordinates in the original coordinate system, which may change according to user actions such as zooming or panning
@@ -186,54 +204,62 @@ class ZoomableCanvas {
       childYOrigin = childXOrigin[1];
       childXOrigin = childXOrigin[0];
     }
-    if (typeof childScale === 'undefined') childScale = 1;
+    const [childScaleX, childScaleY] = childScaleConverter(childScale);
     if (typeof childXOrigin === 'undefined') childXOrigin = 0;
     if (typeof childYOrigin === 'undefined') childYOrigin = this.height;
     else childYOrigin = this.height - childYOrigin;
     const childX = (x - this.xOrigin) / this.scale;
     const childY = (y - this.yOrigin) / this.scale;
-    if (childScale < 0)
+    if (childScaleX < 0 || childScaleY < 0)
       return [ childX, childY ];
-    return [ (childX - childXOrigin) / childScale, (-childY + childYOrigin) / childScale ];
+    return [ (childX - childXOrigin) / childScaleX, (-childY + childYOrigin) / childScaleY ];
   }
 
   /**
    * Draw a grid (e.g. in the background) for the original coordinate system
-   * @param {string} [unit] the unit of the original coordinate system. For no unit, pass the empty string
-   * @param {number} [childScale] the internal scale of the child element using this canvas
+   * @param {function(number, string): string} [unitConverter] should convert a number for an axis label to the correct scientific presentation, including the unit.
+   *                                                           The converter should accept the number as first parameter, and 'x' or 'y' as second parameter,
+   *                                                           which indicates whether this conversion is for an x-axis or y-axis label (important if they have different units).
+   *                                                           The converter should return the final formatted string, together with the correct unit.
+   * @param {boolean} [gridMode] whether to draw the grid (if set to true) or the legend for the grid (if set to false)
+   * @param {number|[number, number]} [childScale] the internal scale of the child element using this canvas (pass an array for separate x- and y-scales)
    * @param {number|[number, number]} [childXOrigin] the internal origin of the child in pixels the x-direction (from the lower left corner of the canvas) (or the pair for x- and y-direction)
    * @param {number} [childYOrigin] the internal origin of the child in pixels in the y-direction (from the lower left corner of the canvas)
    * @param {Color} [color] the grid color
    */
-  drawGrid(unit = '', childScale, childXOrigin, childYOrigin, color = new Color(200, 200, 200)) {
+  drawGrid(unitConverter = '', gridMode = true, childScale, childXOrigin, childYOrigin, color = new Color(200, 200, 200)) {
     if (Array.isArray(childXOrigin)) {
       if (typeof childYOrigin !== 'undefined')
         color = childYOrigin;
       childYOrigin = childXOrigin[1];
       childXOrigin = childXOrigin[0];
     }
-    if (typeof childScale === 'undefined') childScale = 1;
-    const dpr = window.devicePixelRatio || 1;
-    const lineSpacing = this.desiredGridSpace * dpr;
-    const origLineSpacing = lineSpacing / (childScale * this.scale);
-    const origSpacingPower = Math.log10(origLineSpacing);
-    const powerFloor = Math.floor(origSpacingPower);
-    let origGridLineDist = 5 * Math.pow(10, powerFloor);
-    if (origSpacingPower - powerFloor < SPACING_BOUND_A) {
-      origGridLineDist = Math.pow(10, powerFloor);
-    } else if (origSpacingPower - powerFloor > SPACING_BOUND_B) {
-      origGridLineDist = Math.pow(10, powerFloor + 1);
-    }
+    const [childScaleX, childScaleY] = childScaleConverter(childScale);
+    const lineSpacing = this.desiredGridSpace * this.pxToCanPx;
+    const computeLineDist = (scale) => {
+      const origLineSpacing = lineSpacing / (scale * this.scale);
+      const origSpacingPower = Math.log10(origLineSpacing);
+      const powerFloor = Math.floor(origSpacingPower);
+      if (origSpacingPower - powerFloor < SPACING_BOUND_A) {
+        return [Math.pow(10, powerFloor)];
+      } else if (origSpacingPower - powerFloor > SPACING_BOUND_B) {
+        return [Math.pow(10, powerFloor + 1)];
+      } else {
+        return [5 * Math.pow(10, powerFloor)];
+      }
+    };
+    const [origGridLineDistX] = computeLineDist(childScaleX);
+    const [origGridLineDistY] = computeLineDist(childScaleY);
     const [left, top] = this.r(0, 0, childScale, childXOrigin, childYOrigin);
     const [right, bottom] = this.r(this.width, this.height, childScale, childXOrigin, childYOrigin);
-    const leftmostLine = Math.ceil(left / origGridLineDist);
-    const rightmostLine = Math.floor(right / origGridLineDist);
-    const topmostLine = Math.floor(top / origGridLineDist);
-    const bottommostLine = Math.ceil(bottom / origGridLineDist);
+    const leftmostLine = Math.ceil(left / origGridLineDistX);
+    const rightmostLine = Math.floor(right / origGridLineDistX);
+    const topmostLine = Math.floor(top / origGridLineDistY);
+    const bottommostLine = Math.ceil(bottom / origGridLineDistY);
 
     const ctx = this.ctx;
     for (let lr = leftmostLine; lr <= rightmostLine; lr++) {
-      const origX = origGridLineDist * lr;
+      const origX = origGridLineDistX * lr;
       const finalX = Math.round(this.p(origX, 0, childScale, childXOrigin, childYOrigin)[0]);
       ctx.beginPath();
       ctx.moveTo(finalX - ((lr % 2 == 0) ? 0 : 0.5), 0);
@@ -245,7 +271,7 @@ class ZoomableCanvas {
       ctx.closePath();
     }
     for (let tb = bottommostLine; tb <= topmostLine; tb++) {
-      const origY = origGridLineDist * tb;
+      const origY = origGridLineDistY * tb;
       const finalY = Math.round(this.p(0, origY, childScale, childXOrigin, childYOrigin)[1]);
       ctx.beginPath();
       ctx.moveTo(0, finalY - ((tb % 2 == 0) ? 0 : 0.5));

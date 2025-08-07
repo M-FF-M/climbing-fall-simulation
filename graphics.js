@@ -152,11 +152,6 @@ class WorldGraphics {
       ctx.textAlign = 'left';
       ctx.fillText(`${numToStr(i * 0.5)} m`, 5, ycoord);
     }
-    ctx.font = '1em Arial';
-    ctx.fillStyle = 'black';
-    ctx.textBaseline = 'top';
-    ctx.textAlign = 'right';
-    ctx.fillText(`t = ${numToStr(this.currentTime, 2, 5, 2)} s`, this.width - 5, 5);
   }
 
   /**
@@ -171,14 +166,12 @@ class WorldGraphics {
     ctx.clearRect(0, 0, w, h);
     ctx.lineJoin = 'round';
 
-    can.drawGrid('m', this.scale, this.xOrigin, this.yOrigin);
+    can.drawGrid('m', true, this.scale, this.xOrigin, this.yOrigin);
 
     if (typeof PHYSICS_WORLD === 'object' && typeof PHYSICS_WORLD.barriers !== 'undefined') { // draw barriers
       for (const barrier of PHYSICS_WORLD.barriers)
         this.drawBarrier(ctx, barrier.normal, barrier.shift);
     }
-
-    // this.drawHeightMarkers(ctx);
 
     for (const objSnap of this.currentSnapshot) { // draw bodies
 
@@ -208,5 +201,13 @@ class WorldGraphics {
         }
       }
     }
+    
+    ctx.font = `${can.pxToCanPx}em Arial`;
+    ctx.fillStyle = 'black';
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'right';
+    ctx.fillText(`t = ${numToStr(this.currentTime, 2, 5, 2)} s`, this.width - 5, 5);
+
+    // can.drawGrid('m', false, this.scale, this.xOrigin, this.yOrigin);
   }
 }
