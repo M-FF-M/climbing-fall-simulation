@@ -21,7 +21,7 @@ const GLOBALS = {
 };
 
 function main() {
-  document.getElementById('progress_info').style.fontFamily = 'Arial';
+  document.body.style.fontFamily = 'Arial';
 
   GLOBALS.startHeight = 6; // height of climber above ground / belay
   GLOBALS.lastDrawHeight = 5; // height of last draw above ground / belay (set to 0 for no deflection point)
@@ -181,8 +181,8 @@ function precalculatePositions(targetTime, FPS = 40, prevSnapshots = [], stepsDo
 function drawRope(infoObj, snapshots) {
   const devpr = window.devicePixelRatio || 1;
   const cvs = document.getElementById('main-canvas-container');
-  cvs.style.width = `${GLOBALS.canvasWidth / devpr}px`;
-  cvs.style.height = `${GLOBALS.canvasHeight / devpr}px`;
+  // cvs.style.width = `${GLOBALS.canvasWidth / devpr}px`;
+  // cvs.style.height = `${GLOBALS.canvasHeight / devpr}px`;
 
   if (typeof GLOBALS.graphicsManager === 'undefined') {
     GLOBALS.graphicsManager = new WorldGraphics(cvs);

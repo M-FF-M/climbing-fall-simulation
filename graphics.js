@@ -130,40 +130,14 @@ class WorldGraphics {
   }
 
   /**
-   * Draw height markers onto the canvas
-   * @param {CanvasRenderingContext2D} ctx the canvas context onto which to draw
-   */
-  drawHeightMarkers(ctx) {
-    for (let i = 0; i <= 20; i++) {
-      ctx.beginPath();
-      const ycoord = this.p(0, 0.5 * i, 0)[1];
-      ctx.moveTo(0, ycoord - 0.5);
-      ctx.lineTo(this.width, ycoord - 0.5);
-      if (i % 2 == 0)
-        ctx.strokeStyle = 'rgb(190, 190, 190)';
-      else
-        ctx.strokeStyle = 'rgb(220, 220, 220)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.closePath();
-      ctx.font = '0.75em Arial';
-      ctx.fillStyle = 'black';
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.fillText(`${numToStr(i * 0.5)} m`, 5, ycoord);
-    }
-  }
-
-  /**
    * Draw the current scene snapshot
    */
   draw() {
     if (this.width <= 0 || this.height <= 0 || this.currentSnapshot === null || this.scale <= 0)
       return;
-    const w = this.width; const h = this.height;
     const can = this.can;
+    can.clear();
     const ctx = can.ctx;
-    ctx.clearRect(0, 0, w, h);
     ctx.lineJoin = 'round';
 
     can.drawGrid('m', true, this.scale, this.xOrigin, this.yOrigin);
@@ -202,12 +176,18 @@ class WorldGraphics {
       }
     }
     
-    ctx.font = `${can.pxToCanPx}em Arial`;
+    const timeString = `t = ${numToStr(this.currentTime, 2, 5, 2)} s`;
+    ctx.font = `${can.pxToCanPx}em ${getComputedStyle(this.can.canvas).fontFamily}`;
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'right';
+    const padding = Math.ceil(Math.max(2, ctx.measureText('o').width / 2));
+    const metrics = ctx.measureText(timeString);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillRect(this.width - metrics.width - 2*padding, 0, metrics.width + 2*padding, metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent + 2*padding);
     ctx.fillStyle = 'black';
     ctx.textBaseline = 'top';
-    ctx.textAlign = 'right';
-    ctx.fillText(`t = ${numToStr(this.currentTime, 2, 5, 2)} s`, this.width - 5, 5);
+    ctx.fillText(timeString, this.width - padding, padding);
 
-    // can.drawGrid('m', false, this.scale, this.xOrigin, this.yOrigin);
+    can.drawGrid('m', false, this.scale, this.xOrigin, this.yOrigin);
   }
 }
