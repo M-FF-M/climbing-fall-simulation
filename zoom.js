@@ -146,20 +146,14 @@ class ZoomableCanvas {
     const dpr = window.devicePixelRatio || 1;
     if (Math.abs(dpr - this.pxToCanPx) > 1e-4 || Math.abs(this.width - width * dpr) > 0.4 || Math.abs(this.height - height * dpr) > 0.4) {
       this.pxToCanPx = dpr;
-      this.width = width * this.pxToCanPx;
-      this.height = height * this.pxToCanPx;
-      this.canvas.width = Math.round(this.width);
-      this.canvas.height = Math.round(this.height);
-      this.canvas.style.width = `${Math.round(width)}px`;
-      this.canvas.style.height = `${Math.round(height)}px`;
 
       // The rounded CSS and canvas pixel sizes might not hit the device pixel ratio exactly.
       // This can again lead to blurred lines which are not pixel-aligned.
       // Therefore, we try to find canvas dimensions close by which allow matching the device pixel ratio exactly, within a specified tolerance from the original dimensions.
       const TOLERANCE = Math.floor(this.sizeTolerance * this.pxToCanPx);
       const findBestSize = (desiredS, desiredCssS, type) => {
+        let done = false;
         for (let i = 0; i <= TOLERANCE; i++) {
-          let done = false;
           for (let j = -1; j <= 1; j += 2) {
             const actS = desiredS + i * j;
             if (Math.abs(actS / desiredCssS - this.pxToCanPx) < 1e-6) {
@@ -180,7 +174,7 @@ class ZoomableCanvas {
                   this.canvas.style.width = `${Math.round(actCssS)}px`;
                 } else {
                   this.canvas.height = actS;
-                  this.canvas.style.height = `${desiredCssS}px`;
+                  this.canvas.style.height = `${Math.round(actCssS)}px`;
                 }
                 done = true;
                 break;
@@ -189,9 +183,20 @@ class ZoomableCanvas {
           }
           if (done) break;
         }
+        if (!done) {
+          if (type == 'width') {
+            this.canvas.width = desiredS;
+            this.canvas.style.width = `${desiredS / this.pxToCanPx}px`;
+          } else {
+            this.canvas.height = desiredS;
+            this.canvas.style.height = `${desiredS / this.pxToCanPx}px`;
+          }
+        }
       };
-      findBestSize(Math.round(this.width), Math.round(width), 'width');
-      findBestSize(Math.round(this.height), Math.round(height), 'height');
+      findBestSize(Math.round(width * this.pxToCanPx), Math.round(width), 'width');
+      findBestSize(Math.round(height * this.pxToCanPx), Math.round(height), 'height');
+      this.width = this.canvas.width;
+      this.height = this.canvas.height;
 
       this.changeCallback();
     }
