@@ -2,6 +2,8 @@
 
 This repository contains a webpage which can be used to simulate a climbing fall. Forces and rope stretching are simulated as accurately as possible and the simulation result is displayed using an animation as well as force, energy and position graphs.
 
+The webpage is still work in progress. You can check out the current version at [https://m-ff-m.github.io/climbing-fall-simulation/](https://m-ff-m.github.io/climbing-fall-simulation/).
+
 ## License
 
 Copyright © 2025 Fabian Michel
