@@ -31,12 +31,14 @@
  * @property {number} kinetic the kinetic energy (in Joule)
  * @property {number} potential the potential energy (in Joule)
  * @property {number} [elastic] the elastic energy (in Joule) stored in a rope due to stretching
+ * @property {number} [overall] the overall energy (in Joule) stored in the body
  */
 
 /**
  * @typedef {Object} ObjectSnapshot snapshot of the state of a body at a given time
  * @property {'point mass'|'rope'} type the type of the body, can be used e.g. to draw the body appropriately
  * @property {string} id a unique string identifying this body
+ * @property {string} name a name for this body, interpretable by a human
  * @property {ForceSnapshot} forces the current forces applied to the body
  * @property {StateSnapshot} visibleState the current visible state of the body (excludes e.g. speed or acceleration)
  * @property {EnergySnapshot} energy the current energy stored in the body
@@ -305,7 +307,7 @@ class Rope {
   get currentPotentialEnergy() {
     let energy = 0;
     for (let i = 0; i < this.bodies.length; i++)
-      energy += - this.bodies[i].currentPotentialEnergy;
+      energy += this.bodies[i].currentPotentialEnergy;
     return energy;
   }
 
@@ -324,9 +326,13 @@ class Rope {
       if (i == this.ropeSegments.length - 1)
         segPos.push(this.ropeSegments[i].bodyB.pos.arr);
     }
+    const kin = this.currentKineticEnergy;
+    const pot = this.currentPotentialEnergy;
+    const ela = this.currentElasticEnergy;
     return {
       type: 'rope',
       id: `${this.name} [${this.id}]`,
+      name: this.name,
       visibleState: {
         segmentPositions: segPos,
         color: this.drawingColor,
@@ -337,9 +343,10 @@ class Rope {
         current: this.currentStretchingForce
       },
       energy: {
-        kinetic: this.currentKineticEnergy,
-        potential: this.currentPotentialEnergy,
-        elastic: this.currentElasticEnergy
+        kinetic: kin,
+        potential: pot,
+        elastic: ela,
+        overall: kin + pot + ela
       },
       runningMaxima: {
         speed: this.maxEndSpeed,
@@ -860,9 +867,12 @@ class Body {
    * @return {ObjectSnapshot} a snapshot of the current state of the body
    */
   captureSnapshot() {
+    const kin = this.currentKineticEnergy;
+    const pot = this.currentPotentialEnergy;
     return {
       type: 'point mass',
       id: `${this.name} [${this.id}]`,
+      name: this.name,
       visibleState: {
         position: this.pos.arr,
         color: this.drawingColor,
@@ -874,8 +884,9 @@ class Body {
         averageWindow : this.forceAvgWindow
       },
       energy: {
-        kinetic: this.currentKineticEnergy,
-        potential: this.currentPotentialEnergy
+        kinetic: kin,
+        potential: pot,
+        overall: kin + pot
       }
     };
   }

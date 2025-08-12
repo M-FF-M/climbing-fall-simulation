@@ -1,7 +1,91 @@
 
-#main-canvas-container {
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* #main-canvas-container {
   width: 100%;
   min-height: 30em;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
+} */
+
+/* =====  Container switches between vertical & horizontal  ===== */
+#flex-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+/* default: two columns */
+#flex-container.split-vertical {
+  flex-direction: row;
+}
+/* alternative: two rows */
+#flex-container.split-horizontal {
+  flex-direction: column;
+}
+
+/* =====  Panels  ===== */
+.panel {
+  display: flex;
+  overflow: hidden; /* clip overflowing child content */
+  flex: 1 1 50%;     /* start 50 % / 50 % */
+  min-width: 0;      /* allow flexbox to shrink below content width */
+  min-height: 0;
+}
+
+/* Left‑column specific structure */
+.panel-left {
+  flex-direction: column;
+}
+.left-head {
+  padding: 1em;
+  background: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+  flex: 0 0 auto; /* height is content‑driven */
+}
+.left-body {
+  flex: 1 1 auto;  /* fill remaining height */
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Right‑column – three equal vertical sections */
+.panel-right {
+  flex-direction: column;
+}
+.section {
+  flex: 1 1 auto;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.section:first-child {
+  flex: 0 0 auto;
+  border-top: none;
+  padding: 0.5em;
+}
+
+/* =====  Resizer bar  ===== */
+.resizer {
+  background: #d0d0d0;
+  flex: 0 0 0.3em;          /* thickness */
+  user-select: none;
+}
+.split-vertical .resizer {
+  width: 0.3em;
+  height: 100%;
+  cursor: col-resize;
+}
+/* When layout becomes horizontal the bar turns horizontal */
+.split-horizontal .resizer {
+  width: 100%;
+  height: 0.3em;
+  cursor: row-resize;
 }

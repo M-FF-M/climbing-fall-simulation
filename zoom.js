@@ -276,11 +276,14 @@ class ZoomableCanvas {
   /**
    * Draw a grid (e.g. in the background) for the original coordinate system
    * @param {string|[string, string]} [unit] the unit of the original coordinate system. Pass the empty string for no unit, and pass an array if there are different units for the x- and y-axis.
-   * @param {boolean} [gridMode] whether to draw the grid (if set to true) or the legend for the grid (if set to false). Note: the class properties desiredGridSpace, gridLegendLeft and gridLegendBelow affect the appearance of the grid!
+   * @param {boolean|'measure'} [gridMode] whether to draw the grid (if set to true) or the legend for the grid (if set to false).
+   *                                       If set to the string 'measure', the method returns the size of the axis legends and doesn't draw anything.
+   *                                       Note: the class properties desiredGridSpace, gridLegendLeft and gridLegendBelow affect the appearance of the grid!
    * @param {number|[number, number]} [childScale] the internal scale of the child element using this canvas (pass an array for separate x- and y-scales)
    * @param {number|[number, number]} [childXOrigin] the internal origin of the child in pixels the x-direction (from the lower left corner of the canvas) (or the pair for x- and y-direction)
    * @param {number} [childYOrigin] the internal origin of the child in pixels in the y-direction (from the lower left corner of the canvas)
    * @param {Color} [color] the grid color
+   * @return {void|[number, number]} Returns the width of the y-axis legend and the height of the x-axis legend if gridMode is set to 'measure'
    */
   drawGrid(unit = '', gridMode = true, childScale, childXOrigin, childYOrigin, color = new Color(200, 200, 200)) {
     if (Array.isArray(childXOrigin)) {
@@ -289,6 +292,8 @@ class ZoomableCanvas {
       childYOrigin = childXOrigin[1];
       childXOrigin = childXOrigin[0];
     }
+    const measureOnly = (gridMode === 'measure');
+    gridMode = (typeof gridMode === 'boolean') && gridMode;
     const [unitX, unitY] = parameterXYConverter(unit, 'string');
     const [childScaleX, childScaleY] = parameterXYConverter(childScale);
     const lineSpacing = this.desiredGridSpace * this.pxToCanPx;
@@ -358,33 +363,40 @@ class ZoomableCanvas {
       if (this.gridLegendBelow) { // draw semi-transparent white background for legend
         yBottom = this.height - maxXLabelAscent - maxXLabelDescent - padding*2.5;
         yBorder = yBottom;
-        ctx.fillRect(0, this.height - maxXLabelAscent - maxXLabelDescent - padding*2.5, this.width, maxXLabelAscent + maxXLabelDescent + padding*2.5);
+        if (!measureOnly) ctx.fillRect(0, this.height - maxXLabelAscent - maxXLabelDescent - padding*2.5, this.width, maxXLabelAscent + maxXLabelDescent + padding*2.5);
       } else {
         yTop = maxXLabelAscent + maxXLabelDescent + padding*2.5;
         yBorder = yTop;
-        ctx.fillRect(0, 0, this.width, maxXLabelAscent + maxXLabelDescent + padding*2.5);
+        if (!measureOnly) ctx.fillRect(0, 0, this.width, maxXLabelAscent + maxXLabelDescent + padding*2.5);
       }
       if (this.gridLegendLeft) {
         xLeft = maxYLabelWidth + padding*2.5;
         xBorder = xLeft;
-        ctx.fillRect(0, yTop - 0.5, maxYLabelWidth + padding*2.5, 1 + yBottom - yTop);
+        if (!measureOnly) ctx.fillRect(0, yTop - 0.5, maxYLabelWidth + padding*2.5, 1 + yBottom - yTop);
       } else {
         xRight = this.width - maxYLabelWidth - padding*2.5;
         xBorder = xRight;
-        ctx.fillRect(this.width - maxYLabelWidth - padding*2.5, yTop - 0.5, maxYLabelWidth + padding*2.5, 1 + yBottom - yTop);
+        if (!measureOnly) ctx.fillRect(this.width - maxYLabelWidth - padding*2.5, yTop - 0.5, maxYLabelWidth + padding*2.5, 1 + yBottom - yTop);
       }
-      ctx.lineWidth = 2; // draw separation line for legend
-      ctx.strokeStyle = color.darken(0.4).toString();
-      ctx.beginPath();
-      ctx.moveTo(xLeft, Math.round(yBorder));
-      ctx.lineTo(xRight, Math.round(yBorder));
-      ctx.stroke();
-      ctx.closePath();
-      ctx.beginPath();
-      ctx.moveTo(Math.round(xBorder), yTop);
-      ctx.lineTo(Math.round(xBorder), yBottom);
-      ctx.stroke();
-      ctx.closePath();
+      if (!measureOnly) {
+        ctx.lineWidth = 2; // draw separation line for legend
+        ctx.strokeStyle = color.darken(0.4).toString();
+        ctx.beginPath();
+        ctx.moveTo(xLeft, Math.round(yBorder));
+        ctx.lineTo(xRight, Math.round(yBorder));
+        ctx.stroke();
+        ctx.closePath();
+        ctx.beginPath();
+        ctx.moveTo(Math.round(xBorder), yTop);
+        ctx.lineTo(Math.round(xBorder), yBottom);
+        ctx.stroke();
+        ctx.closePath();
+      }
+    }
+    if (measureOnly) {
+      const yAxisWidth = this.gridLegendLeft ? xBorder : this.width - xBorder;
+      const xAxisHeight = this.gridLegendBelow ? this.height - yBorder : yBorder;
+      return [yAxisWidth, xAxisHeight];
     }
 
     for (let lr = leftmostLine; lr <= rightmostLine; lr++) {
