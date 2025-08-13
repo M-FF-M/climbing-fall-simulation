@@ -151,6 +151,14 @@ class Color {
   }
 
   /**
+   * Method for JSON serialization
+   * @return {string} the CSS string corresponding to this color, either rgb(...) or rgba(...)
+   */
+  toJSON() {
+    return this.toString();
+  }
+
+  /**
    * Get the grayscale value for this color
    * @return {number} the grayscale value
    */
@@ -209,7 +217,7 @@ class Color {
   }
 }
 
-const RAINBOW_COLORS = [/*new Color('#345a5d'), new Color('#355e8a'),*/ new Color('#53a396'),
+const RAINBOW_COLORS = [new Color('#345a5d'), new Color('#355e8a'), new Color('#53a396'),
   new Color('#4d884e'), new Color('#809254'), new Color('#ffd43a'), new Color('#f1a02d'),
   new Color('#b65329'), new Color('#975f60'), new Color('#3e2b3e')];
 

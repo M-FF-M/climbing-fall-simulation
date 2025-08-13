@@ -31,7 +31,7 @@ class GraphCanvas {
    * @param {'forces'|'positions'|'energy'} [type] the type of graph to draw
    */
   constructor(boundingElement, snapshots, type = 'forces') {
-    boundingElement.innerHTML = '';
+    boundingElement.replaceChildren();
     boundingElement.style.display = 'flex';
     boundingElement.style.flexDirection = 'column';
     /** @type {HTMLDivElement} the container for the canvas onto which the graph will be drawn */
@@ -43,7 +43,7 @@ class GraphCanvas {
     this.legendContainer = document.createElement('div');
     this.legendContainer.style.flex = '0 0 auto';
     this.legendContainer.style.padding = '0.5em';
-    this.legendContainer.innerText = GRAPH_PROPERTIES[type].legend;
+    this.legendContainer.textContent = GRAPH_PROPERTIES[type].legend;
     boundingElement.appendChild(this.legendContainer);
     /** @type {ZoomableCanvas} the zoomable canvas onto which to draw */
     this.can = new ZoomableCanvas(this.canvasContainer, () => this.canvasChange())
@@ -126,7 +126,7 @@ class GraphCanvas {
           colorBox.style.marginRight = '0.4em';
           colorBox.style.backgroundColor = color;
           const nameSpan = document.createElement('span');
-          nameSpan.innerText = bodySnapshot.name;
+          nameSpan.textContent = bodySnapshot.name;
           legendSpan.appendChild(colorBox);
           legendSpan.appendChild(nameSpan);
           legendSpan.style.marginLeft = '0.3em';
@@ -155,7 +155,7 @@ class GraphCanvas {
     can.clear();
     const ctx = can.ctx;
     ctx.lineJoin = 'round';
-    if (this.scaleX == 0 || this.scaleY == 0) {
+    if (this.scaleX == 0 || this.scaleY == 0 || can.inDefaultState) {
       if (this.width == 0 || this.height == 0) return;
       this.scaleX = this.width / (this.maxX - this.minX);
       this.scaleY = this.height / (this.maxY - this.minY);

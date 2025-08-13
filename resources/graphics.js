@@ -28,7 +28,7 @@ class WorldGraphics {
   canvasChange() {
     this.width = this.can.width;
     this.height = this.can.height;
-    if (typeof this.xOrigin === 'undefined') {
+    if (typeof this.xOrigin === 'undefined' || this.can.inDefaultState) {
       /** @type {number} origin in the x-direction in pixels */
       this.xOrigin = this.width / 2;
       /** @type {number} origin in the y-direction in pixels */

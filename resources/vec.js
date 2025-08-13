@@ -77,7 +77,7 @@ class V {
    * @return {number} the euclidean norm
    */
   norm() {
-    return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z);
+    return Math.hypot(this.x, this.y, this.z);
   }
 
   /**

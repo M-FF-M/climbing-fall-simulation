@@ -29,10 +29,11 @@ class ZoomableCanvas {
    */
   constructor(boundingElement, changeCallback) {
     boundingElement.style.contain = 'size';
-    boundingElement.innerHTML = '';
+    boundingElement.replaceChildren();
     /** @type {HTMLCanvasElement} the canvas that will be used for drawing */
     this.canvas = document.createElement('canvas');
     this.canvas.style.userSelect = 'none';
+    this.canvas.style.touchAction = 'none';
     boundingElement.appendChild(this.canvas);
     /** @type {HTMLElement} the element into which the scene should be drawn */
     this.boundingElement = boundingElement;
@@ -51,31 +52,23 @@ class ZoomableCanvas {
     this.xOrigin = 0;
     /** @type {number} origin in the y-direction in pixels (0 = top) */
     this.yOrigin = 0;
-    /** @type {number} current x position of mouse (from top left) */
-    this.mouseX = 0;
-    /** @type {number} current y position of mouse (from top left) */
-    this.mouseY = 0;
-    /** @type {boolean} whether the left mouse button is currently pressed */
-    this.mousePressed = false;
+    /** @type {boolean} if set to true, the canvas still has the initial zoom level and offset; otherwise, the user already changed one of these */
+    this.inDefaultState = true;
+    /** @type {Map<number, [number, number]>} maps ids of active pointers to their current position */
+    this.activePointers = new Map();
+    /** @type {boolean} true if the user is currently dragging on the canvas */
+    this.userIsDragging = false; // 1-finger drag
+    /** @type {{lastDist: number, lastCenter: [number, number]}|null} contains pinching information if the user pinches on the canvas */
+    this.pinch = null; // 2-finger pinch
     this.canvas.addEventListener('wheel', evt => this.processWheel(evt), { passive: false });
-    this.canvas.addEventListener('mousedown', evt => {
-      if (evt.button === 0)
-        this.mousePressed = true;
-    });
-    this.canvas.addEventListener('mouseup', evt => {
-      if (evt.button === 0)
-        this.mousePressed = false;
-    });
-    this.canvas.addEventListener('mouseleave', evt => {
-      this.mousePressed = false;
-    });
-    this.canvas.addEventListener('mousemove', evt => {
-      const dx = this.mouseX - evt.offsetX;
-      const dy = this.mouseY - evt.offsetY;
-      this.mouseX = evt.offsetX;
-      this.mouseY = evt.offsetY;
-      if (this.mousePressed)
-        this.processMove(dx, dy);
+    this.canvas.addEventListener('pointerdown', evt => this.processPointerDown(evt));
+    this.canvas.addEventListener('pointermove', evt => this.processPointerMove(evt));
+    this.canvas.addEventListener('pointerup', evt => this.processPointerCancel(evt));
+    this.canvas.addEventListener('pointercancel', evt => this.processPointerCancel(evt));
+    this.canvas.addEventListener('lostpointercapture', evt => this.processPointerCancel(evt));
+    window.addEventListener('blur', evt => {
+      this.activePointers.clear();
+      this.processPointerCancel();
     });
     /** @type {number} desired space between two grid lines in (CSS) pixels (i.e. not canvas pixels, which can be different, see property pxToCanPx) */
     this.desiredGridSpace = 50;
@@ -87,6 +80,139 @@ class ZoomableCanvas {
     this.pxToCanPx = 1;
     /** @type {number} the tolerance in deviations in CSS pixels for the canvas size from its desired size (in order to get lines which are precisely aligned with screen pixels, see device pixel ratio) */
     this.sizeTolerance = 4;
+  }
+
+  /**
+   * Convert pointer event coordinates to canvas coordinates
+   * @param {MouseEvent} evt the event object. clientX and clientY properties will be read and converted.
+   * @return {[number, number]} the canvas coordinates corresponding to the current pointer coordinates
+   */
+  ptrEvtCoordsToCanvasCoords(evt) {
+    const rect = this.canvas.getBoundingClientRect();
+    return [ (evt.clientX - rect.left) * this.pxToCanPx, (evt.clientY - rect.top) * this.pxToCanPx ];
+  }
+
+  /**
+   * Zoom around a canvas point such that this particular point stays where it is
+   * @param {number} cx the x coordinate of the point in canvas pixels
+   * @param {number} cy the y coordinate of the point in canvas pixels
+   * @param {number} factor the scaling factor (> 0). The scale property will be multiplied by this factor.
+   */
+  zoomAtCanvasCoords(cx, cy, factor) {
+    const [wx, wy] = this.r(cx, cy, -1); // convert canvas coordinates to coordinates in the system of this canvas
+    this.scale *= factor;
+    const [nx, ny] = this.p(wx, wy, -1); // nx and ny are the canvas coordinates of the same point after scaling
+    this.xOrigin += cx - nx; // shift appropriately so that the point is again at the same canvas coordinates
+    this.yOrigin += cy - ny;
+    if (factor != 1)
+      this.inDefaultState = false;
+  }
+
+  /**
+   * Move the canvas (its contents, respectively the coordinate system)
+   * @param {number} dx the shift in x-direction in canvas pixels (will be added to xOrigin)
+   * @param {number} dy the shift in y-direction in canvas pixels (will be added to yOrigin)
+   */
+  moveCanvas(dx, dy) {
+    this.xOrigin += dx;
+    this.yOrigin += dy;
+    if (dx != 0 || dy != 0)
+      this.inDefaultState = false;
+  }
+
+  /**
+   * Get the euclidean distance between two coordinate pairs
+   * @param {[number, number]} a the first coordinate pair
+   * @param {[number, number]} b the second coordinate pair
+   * @return {number} the distance
+   */
+  getDist(a, b) {
+    return Math.hypot(a[0] - b[0], a[1] - b[1]);
+  }
+
+  /**
+   * Get the coordinate pair which lies in the middle of two coordinate pairs
+   * @param {[number, number]} a the first coordinate pair
+   * @param {[number, number]} b the second coordinate pair
+   * @return {[number, number]} the point in the middle
+   */
+  getCenter(a, b) {
+    return [ (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 ];
+  }
+
+  /**
+   * Process a pointer down event
+   * @param {PointerEvent} evt the event object
+   */
+  processPointerDown(evt) {
+    if (evt.pointerType === 'mouse' && evt.button !== 0) return;
+    evt.preventDefault();
+    if (this.activePointers.size >= 2) {
+      this.activePointers.clear();
+      this.processPointerCancel();
+      return;
+    }
+    const pos = this.ptrEvtCoordsToCanvasCoords(evt);
+    this.activePointers.set(evt.pointerId, pos);
+    this.canvas.setPointerCapture(evt.pointerId);
+
+    if (this.activePointers.size === 1) {
+      this.pinch = null;
+      this.userIsDragging = true;
+    } else if (this.activePointers.size === 2) {
+      const [p1, p2] = [...this.activePointers.values()];
+      this.pinch = {
+        lastDist: this.getDist(p1, p2),
+        lastCenter: this.getCenter(p1, p2)
+      };
+      this.userIsDragging = false;
+    }
+  }
+
+  /**
+   * Process a pointer move event
+   * @param {PointerEvent} evt the event object
+   */
+  processPointerMove(evt) {
+    if (!this.activePointers.has(evt.pointerId)) return;
+    const prevPos = this.activePointers.get(evt.pointerId);
+    const currPos = this.ptrEvtCoordsToCanvasCoords(evt);
+    this.activePointers.set(evt.pointerId, currPos);
+
+    if (this.activePointers.size === 1 && this.userIsDragging) {
+      this.moveCanvas(currPos[0] - prevPos[0], currPos[1] - prevPos[1]);
+      this.changeCallback();
+
+    } else if (this.activePointers.size === 2 && this.pinch !== null) {
+      const [p1, p2] = [...this.activePointers.values()];
+      const currDist = this.getDist(p1, p2);
+      const currCenter = this.getCenter(p1, p2);
+      if (this.pinch.lastDist > 0) {
+        this.zoomAtCanvasCoords(currCenter[0], currCenter[1], currDist / this.pinch.lastDist);
+      }
+      this.moveCanvas(currCenter[0] - this.pinch.lastCenter[0], currCenter[1] - this.pinch.lastCenter[1]);
+      this.pinch.lastDist = currDist;
+      this.pinch.lastCenter = currCenter;
+      this.changeCallback();
+    }
+  }
+
+  /**
+   * Process a pointer cancel event
+   * @param {PointerEvent} [evt] the event object
+   */
+  processPointerCancel(evt) {
+    if (typeof evt === 'object') {
+      try { this.canvas.releasePointerCapture(evt.pointerId); } catch (e) {  }
+      this.activePointers.delete(evt.pointerId);
+    }
+    if (this.activePointers.size === 1) {
+      this.pinch = null;
+      this.userIsDragging = true;
+    } else if (this.activePointers.size === 0) {
+      this.pinch = null;
+      this.userIsDragging = false;
+    }
   }
 
   /**
@@ -118,22 +244,9 @@ class ZoomableCanvas {
     let scrollAmountPixels = evt.deltaY;
     if (evt.deltaMode == 1) scrollAmountPixels *= 10;
     if (evt.deltaMode == 2) scrollAmountPixels *= 100;
-    const [mX, mY] = this.r(this.mouseX * this.pxToCanPx, this.mouseY * this.pxToCanPx, -1);
-    this.scale *= Math.exp(-scrollAmountPixels / 500);
-    const [nmX, nmY] = this.p(mX, mY, -1);
-    this.xOrigin += this.mouseX * this.pxToCanPx - nmX;
-    this.yOrigin += this.mouseY * this.pxToCanPx - nmY;
-    this.changeCallback();
-  }
-
-  /**
-   * Process a mouse move event
-   * @param {number} dx the amount the mouse moved in the x-direction (in pixels)
-   * @param {number} dy the amount the mouse moved in the y-direction (in pixels)
-   */
-  processMove(dx, dy) {
-    this.xOrigin -= dx * this.pxToCanPx;
-    this.yOrigin -= dy * this.pxToCanPx;
+    const factor = Math.exp(-scrollAmountPixels / 500);
+    const [cx, cy] = this.ptrEvtCoordsToCanvasCoords(evt);
+    this.zoomAtCanvasCoords(cx, cy, factor);
     this.changeCallback();
   }
 

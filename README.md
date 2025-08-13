@@ -12,14 +12,13 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 ## To-Do List
 
-- make the resizer work (which changes the size of the left and right panels); also consider if the canvas scaling settings should change when resizing
-- change the layout when the available width is smaller than the available height
-- add playback controls: pause, animation speed, step functions
+- add playback control: animation speed
 - add a mask for the simulation set-up
+- add menu for choosing which pane displays what and additional settings
 - add legends for the different types of force and energy graphs per object
 - add a view showing the simulation when looking along the x-axis
 - decrease the axis legend text size if it covers too much of the available space
-- make zooming and panning work on touch devices
+- test zooming and panning on touch devices
 - add the option to store simulation results in-browser and to download and upload them
 - add proper quickdraws where the carabiner is attached to a fixed point via a sling
 - properly implement damping for the rope to get rid of the too-springy behavior
