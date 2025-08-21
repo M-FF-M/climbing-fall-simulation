@@ -12,13 +12,14 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 ## To-Do List
 
-- add playback control: animation speed
 - add a mask for the simulation set-up
 - add menu for choosing which pane displays what and additional settings
 - add legends for the different types of force and energy graphs per object
-- add a view showing the simulation when looking along the x-axis
+- add a speed graph
 - decrease the axis legend text size if it covers too much of the available space
-- test zooming and panning on touch devices
+- adjust element sizes and numbers for small screens and touch devices
+- adjust slider thickness for touch devices
 - add the option to store simulation results in-browser and to download and upload them
 - add proper quickdraws where the carabiner is attached to a fixed point via a sling
 - properly implement damping for the rope to get rid of the too-springy behavior
+- highlight key moments and calculate key forces (wall / ground impact, maximal force)

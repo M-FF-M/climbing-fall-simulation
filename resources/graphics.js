@@ -6,8 +6,9 @@ class WorldGraphics {
   /**
    * Create a new object responsible for managing the drawing of a scene
    * @param {HTMLElement} boundingElement an element into which the scene should be drawn
+   * @param {boolean} [xyProjection=true] whether to show (x,y)-coordinates (project along the z-axis), if set to false, show (z,y)-coordinates instead
    */
-  constructor(boundingElement) {
+  constructor(boundingElement, xyProjection = true) {
     /** @type {ZoomableCanvas} the zoomable canvas onto which to draw */
     this.can = new ZoomableCanvas(boundingElement, () => this.canvasChange())
     /** @type {number} the width of the canvas in pixels (change only using the canvasChange method!) */
@@ -20,6 +21,8 @@ class WorldGraphics {
     this.currentTime = 0;
     /** @type {number} the scale of the drawing; this measures the ratio pixels / meter */
     this.scale = 50; // 1 meter = 50 pixels
+    /** @type {boolean} whether to show (x,y)-coordinates (project along the z-axis), if set to false, show (z,y)-coordinates instead */
+    this.xyProjectionMode = xyProjection;
   }
 
   /**
@@ -32,7 +35,7 @@ class WorldGraphics {
       /** @type {number} origin in the x-direction in pixels */
       this.xOrigin = this.width / 2;
       /** @type {number} origin in the y-direction in pixels */
-      this.yOrigin = this.height / 2 - 5 * this.scale; // ground is placed 5 meters below the center of the canvas
+      this.yOrigin = this.height / 2 - 3 * this.scale; // ground is placed 3 meters below the center of the canvas
     }
     this.draw();
   }
@@ -65,7 +68,10 @@ class WorldGraphics {
       y = x[1];
       x = x[0];
     }
-    return this.can.p(x, y, this.scale, this.xOrigin, this.yOrigin);
+    if (this.xyProjectionMode)
+      return this.can.p(x, y, this.scale, this.xOrigin, this.yOrigin);
+    else
+      return this.can.p(z, y, this.scale, this.xOrigin, this.yOrigin);
   }
 
   /**
@@ -77,54 +83,67 @@ class WorldGraphics {
    * @param {number} [thickness] the barrier thickness (in meters)
    */
   drawBarrier(ctx, normal, shift, color = new Color(62, 43, 62), thickness = 0.1) {
+    const normalLR = this.xyProjectionMode ? new V(1, 0, 0) : new V(0, 0, 1); // normal pointing from left camera side to right camera side
+    const normalTB = new V(0, 1, 0); // normal pointing from bottom side to top side of camera
+    const normalCam = this.xyProjectionMode ? new V(0, 0, 1) : new V(-1, 0, 0); // normal pointing from the camera towards the scene
     const can = this.can;
     // bounding box for barriers
     const leftBoundary = -10; // left boundary: 10 meters to the left of origin
     const rightBoundary = 10; // right boundary: 10 meters to the right of origin
     const bottomBoundary = -2; // bottom boundary: 2 meters below origin
     const topBoundary = 20; // top boundary: 20 meters above origin
-    if (Math.abs(normal.dot(new V(0, 1, 0))) == 1) {
-      const ycoord = shift * normal.dot(new V(0, 1, 0));
-      ctx.beginPath();
-      ctx.moveTo(...this.p(leftBoundary, ycoord, 0));
-      ctx.lineTo(...this.p(rightBoundary, ycoord, 0));
-      ctx.strokeStyle = color.toString();
-      ctx.lineWidth = Math.ceil(can.l(thickness, this.scale));
-      ctx.stroke();
-      ctx.closePath();
-    } else if (normal.dot(new V(0, 1, 0)) == 0) {
-      const xcoord = shift * normal.dot(new V(1, 0, 0));
-      ctx.beginPath();
-      ctx.moveTo(...this.p(xcoord, bottomBoundary, 0));
-      ctx.lineTo(...this.p(xcoord, topBoundary, 0));
-      ctx.strokeStyle = color.toString();
-      ctx.lineWidth = Math.ceil(can.l(thickness, this.scale));
-      ctx.stroke();
-      ctx.closePath();
-    } else {
-      const normalLR = new V(1, 0, 0);
-      const normalTB = new V(0, 1, 0);
-      const bndCoords = [];
-      for (const [shiftB, normalB, coord] of [
-            [leftBoundary, normalLR, 'y'], [rightBoundary, normalLR, 'y'], [bottomBoundary, normalTB, 'x'], [topBoundary, normalTB, 'x']
-          ]) {
-        const [lineDir, pointOnLine] = calculatePlaneIntersection(normal, shift, normalB, shiftB);
-        const graphCoord = (coord == 'x') ? pointOnLine.x : pointOnLine.y;
-        if (coord == 'x' && graphCoord >= -10 && graphCoord <= 10) {
-          bndCoords.push([graphCoord, shiftB]);
-        } else if (coord == 'y' && graphCoord >= -2 && graphCoord <= 20) {
-          bndCoords.push([shiftB, graphCoord]);
-        }
-      }
-      if (bndCoords.length > 1) {
+
+    if (Math.abs(normal.dot(normalCam)) < GEOMETRY_EPS) { // only a line is visible from the direction of the camera
+      // first, we project the barrier onto the "camera" plane
+      const barrierLine = calculateGeomObjIntersection(new Plane(normal, shift), new Plane(normalCam, 0));
+      const leftIntersec = calculateGeomObjIntersection(barrierLine, new Plane(normalLR, leftBoundary));
+      const rightIntersec = calculateGeomObjIntersection(barrierLine, new Plane(normalLR, rightBoundary));
+      if (leftIntersec.isPoint && rightIntersec.isPoint && leftIntersec.anyPoint.y >= bottomBoundary - GEOMETRY_EPS
+          && leftIntersec.anyPoint.y <= topBoundary + GEOMETRY_EPS && rightIntersec.anyPoint.y >= bottomBoundary - GEOMETRY_EPS
+          && rightIntersec.anyPoint.y <= topBoundary + GEOMETRY_EPS) {
         ctx.beginPath();
-        ctx.moveTo(...this.p(bndCoords[0][0], bndCoords[0][1], 0));
-        for (let i = 1; i < bndCoords.length; i++)
-          ctx.lineTo(...this.p(bndCoords[i][0], bndCoords[i][1], 0));
+        ctx.moveTo(...this.p(...leftIntersec.anyPoint.arr));
+        ctx.lineTo(...this.p(...rightIntersec.anyPoint.arr));
         ctx.strokeStyle = color.toString();
         ctx.lineWidth = Math.ceil(can.l(thickness, this.scale));
         ctx.stroke();
         ctx.closePath();
+      } else {
+        const bottomIntersec = calculateGeomObjIntersection(barrierLine, new Plane(normalTB, bottomBoundary));
+        const topIntersec = calculateGeomObjIntersection(barrierLine, new Plane(normalTB, topBoundary));
+        if (bottomIntersec.isPoint && topIntersec.isPoint) {
+          ctx.beginPath();
+          ctx.moveTo(...this.p(...bottomIntersec.anyPoint.arr));
+          ctx.lineTo(...this.p(...topIntersec.anyPoint.arr));
+          ctx.strokeStyle = color.toString();
+          ctx.lineWidth = Math.ceil(can.l(thickness, this.scale));
+          ctx.stroke();
+          ctx.closePath();
+        }
+      }
+    } else { // an area is visible from the direction of the camera
+      color.a *= 0.3;
+      const barrierPlane = new Plane(normal, shift);
+      const leftLine = calculateGeomObjIntersection(barrierPlane, new Plane(normalLR, leftBoundary));
+      const rightLine = calculateGeomObjIntersection(barrierPlane, new Plane(normalLR, rightBoundary));
+      const bottomLine = calculateGeomObjIntersection(barrierPlane, new Plane(normalTB, bottomBoundary));
+      const topLine = calculateGeomObjIntersection(barrierPlane, new Plane(normalTB, topBoundary));
+      if (leftLine.isLine && rightLine.isLine && bottomLine.isLine && topLine.isLine) {
+        const pt1 = calculateGeomObjIntersection(leftLine, topLine);
+        const pt2 = calculateGeomObjIntersection(topLine, rightLine);
+        const pt3 = calculateGeomObjIntersection(rightLine, bottomLine);
+        const pt4 = calculateGeomObjIntersection(bottomLine, leftLine);
+        if (pt1.isPoint && pt2.isPoint && pt3.isPoint && pt4.isPoint) {
+          ctx.beginPath();
+          ctx.moveTo(...this.p(...pt1.anyPoint.arr));
+          ctx.lineTo(...this.p(...pt2.anyPoint.arr));
+          ctx.lineTo(...this.p(...pt3.anyPoint.arr));
+          ctx.lineTo(...this.p(...pt4.anyPoint.arr));
+          ctx.lineTo(...this.p(...pt1.anyPoint.arr));
+          ctx.fillStyle = color.toString();
+          ctx.fill();
+          ctx.closePath();
+        }
       }
     }
   }
@@ -176,7 +195,7 @@ class WorldGraphics {
       }
     }
     
-    const timeString = `t = ${numToStr(this.currentTime, 2, 5, 2)} s`;
+    const timeString = `${(this.xyProjectionMode ? 'side view' : 'frontal view')} at time ${numToStr(this.currentTime, 2, 5, 2)} s`;
     ctx.font = `${can.pxToCanPx}em ${getComputedStyle(this.can.canvas).fontFamily}`;
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'right';

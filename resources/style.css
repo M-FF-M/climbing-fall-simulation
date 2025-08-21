@@ -5,13 +5,6 @@ html, body {
   overflow: hidden;
 }
 
-/* #main-canvas-container {
-  width: 100%;
-  min-height: 30em;
-  margin-top: 0.5em;
-  margin-bottom: 0.5em;
-} */
-
 /* =====  Container switches between vertical & horizontal  ===== */
 #flex-container {
   display: flex;
@@ -53,6 +46,11 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
+  border-bottom: 1px solid #e0e0e0;
+}
+.left-body:last-child {
+  border-bottom: none;
 }
 
 /* Right‑column – three equal vertical sections */
@@ -108,4 +106,32 @@ input[type=button]:not(.icon-button), button:not(.icon-button) {
 
 input[type=button].icon-button, button.icon-button {
   padding: 0.1em;
+}
+
+select {
+  font-family: inherit;
+  font-size: 1em;
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  padding-top: 0.2em;
+  padding-bottom: 0.2em;
+}
+
+select.size-to-icon-button {
+  padding-top: 0.4em;
+  padding-bottom: 0.4em;
+}
+
+.progress-bar-outer {
+  text-align: left;
+  padding: 0em;
+  height: 0.4em;
+  background-color: #e0e0e0;
+}
+
+.progress-bar-inner {
+  padding: 0em;
+  margin: 0em;
+  height: 100%;
+  background-color: #4d884e;
 }

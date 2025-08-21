@@ -40,9 +40,14 @@ class V {
     if (x instanceof Array) {
       [x, y, z] = x;
     }
+    /** @type {number} x coordinate of the vector */
     this.x = x;
+    /** @type {number} y coordinate of the vector */
     this.y = y;
+    /** @type {number} z coordinate of the vector */
     this.z = z;
+    /** @type {boolean} whether this vector has length 1 (used to avoid unnecessary duplicate normalizations and norm calculations) */
+    this.isNormalized = false;
   }
 
   /**
@@ -77,6 +82,7 @@ class V {
    * @return {number} the euclidean norm
    */
   norm() {
+    if (this.isNormalized) return 1;
     return Math.hypot(this.x, this.y, this.z);
   }
 
@@ -85,6 +91,7 @@ class V {
    * @return {number} the square of the euclidean norm
    */
   normsq() {
+    if (this.isNormalized) return 1;
     return this.x*this.x + this.y*this.y + this.z*this.z;
   }
 
@@ -100,7 +107,7 @@ class V {
   /**
    * Calculate the cross product of this vector with another vector
    * @param {V} vec the second vector
-   * @return {number} the cross product of the two vectors
+   * @return {V} the cross product of the two vectors
    */
   cross(vec) {
     return new V(this.y * vec.z - this.z * vec.y, this.z * vec.x - this.x * vec.z, this.x * vec.y - this.y * vec.x);
@@ -127,8 +134,10 @@ class V {
    * @return {V} a normalized copy of this vector (or the zero vector if the original vector was zero)
    */
   normalize() {
-    if (this.x == 0 && this.y == 0 && this.z == 0) return this.copy();
-    return this.times(1 / this.norm());
+    if ((this.x == 0 && this.y == 0 && this.z == 0) || this.isNormalized) return this.copy();
+    const res = this.times(1 / this.norm());
+    res.isNormalized = true;
+    return res;
   }
 
   /**
@@ -138,18 +147,4 @@ class V {
   toString() {
     return `(${numToStr(this.x)}, ${numToStr(this.y)}, ${numToStr(this.z)})`;
   }
-}
-
-/**
- * Calculate the intersection of two planes in 3D space (a line). Attention: fails for parallel planes!
- * @param {V} n1 normal vector of the first plane (does not need to have length 1)
- * @param {number} d1 offset of the first plane; all points x in the first plane satisfy x * n1 (inner prod.) = d1
- * @param {V} n2 normal vector of the second plane (does not need to have length 1)
- * @param {number} d2 offset of the second plane; all points x in the second plane satisfy x * n2 (inner prod.) = d2
- * @return {[V, V]} the first element is a vector pointing in the direction of the line, the second element is a vector which lies on the line
- */
-function calculatePlaneIntersection(n1, d1, n2, d2) {
-  const lineDir = n1.cross(n2);
-  const pointOnLine = n2.times(d1).minus(n1.times(d2)).cross(lineDir).times(1 / lineDir.normsq());
-  return [lineDir, pointOnLine];
 }

@@ -168,11 +168,10 @@ class Color {
 
   /**
    * Get black or white text color, depending on what is easier to read if this color is used as background
-   * @param {Color} [defaultColor] the default color to use. Will be returned if the contrast is high enough, will be darkened or lightened otherwise
+   * @param {Color} [defaultColor] the default text color to use. Will be returned if the contrast is high enough, will be darkened or lightened otherwise
    * @param {'none'|'lighten'|'darken'} [preferMode] whether to prefer darkening or lightening the default color (only affects the color if a defaultColor is supplied)
    * @param {string} [latexColorName] optionally provide a LaTeX color name for the text color.
-   * If provided, then this function will return a string like color name!15!black for
-   * use in LaTeX
+   *                                  If provided, then this function will return a string like color name!15!black for use in LaTeX
    * @return {Color|string} the text color (or a string for use in LaTeX)
    */
   getTextColor(defaultColor = null, preferMode = 'none', latexColorName = undefined) {

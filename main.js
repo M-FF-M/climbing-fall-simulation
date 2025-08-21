@@ -11,15 +11,15 @@ function main() {
   GLOBALS.freeFall = 2 * dy;
   GLOBALS.fallFactor = GLOBALS.freeFall / GLOBALS.ropeLength;
   GLOBALS.anchorMass = 70;
-  GLOBALS.anchor = new Body(0, GLOBALS.anchorHeight, 0, GLOBALS.anchorMass, 'belayer');
-  GLOBALS.deflectionPoint = new Body(0.005, GLOBALS.lastDrawHeight, 0, 0, 'quickdraw');
+  GLOBALS.anchor = new Body(0, GLOBALS.anchorHeight, -0.2, GLOBALS.anchorMass, 'belayer');
+  GLOBALS.deflectionPoint = new Body(0.005, GLOBALS.lastDrawHeight, 0.1, 0, 'quickdraw');
   // GLOBALS.deflectionPoint.frictionCoefficient = 0;
   GLOBALS.anchorDPointLen = GLOBALS.lastDrawHeight == 0 ? 0 : GLOBALS.deflectionPoint.pos.minus(GLOBALS.anchor.pos).norm();
   GLOBALS.dPointClimLen = GLOBALS.ropeLength - GLOBALS.anchorDPointLen;
   GLOBALS.climberMass = 70;
   GLOBALS.climber = new Body(
     0.01 + Math.sqrt(GLOBALS.dPointClimLen * GLOBALS.dPointClimLen - dy * dy),
-    GLOBALS.startHeight, 0, GLOBALS.climberMass, 'climber'
+    GLOBALS.startHeight, 0.2, GLOBALS.climberMass, 'climber'
   );
   // GLOBALS.climber.velocityDamping = 0.95; // TODO: improve
   // GLOBALS.anchor.velocityDamping = 0.95; // TODO: improve
