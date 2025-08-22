@@ -5,11 +5,17 @@ html, body {
   overflow: hidden;
 }
 
+body > #setup-mask {
+  display: none;
+}
+
 /* =====  Container switches between vertical & horizontal  ===== */
 #flex-container {
   display: flex;
   height: 100%;
   width: 100%;
+  max-height: 100%;
+  max-width: 100%;
 }
 
 /* default: two columns */
@@ -42,6 +48,8 @@ html, body {
 }
 .left-body {
   flex: 1 1 auto;  /* fill remaining height */
+  min-width: 0;
+  min-height: 0;
   background: #fafafa;
   display: flex;
   align-items: center;
@@ -76,17 +84,36 @@ html, body {
   flex: 0 0 0.3em;          /* thickness */
   user-select: none;
   touch-action: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .split-vertical .resizer {
-  width: 0.3em;
+  width: 0.6em;
   height: 100%;
+  max-width: 0.6em;
+  max-height: 100%;
   cursor: col-resize;
 }
 /* When layout becomes horizontal the bar turns horizontal */
 .split-horizontal .resizer {
   width: 100%;
-  height: 0.3em;
+  height: 0.6em;
+  max-width: 100%;
+  max-height: 0.6em;
   cursor: row-resize;
+}
+.resizer-bullets {
+  font-size: 0.7em;
+  color: white;
+  writing-mode: vertical-rl;
+  text-orientation: sideways;
+  opacity: 0.5;
+}
+
+.resizer:hover .resizer-bullets {
+  opacity: 1;
 }
 
 .material-symbols-outlined {
@@ -108,7 +135,7 @@ input[type=button].icon-button, button.icon-button {
   padding: 0.1em;
 }
 
-select {
+select, input[type=text], input[type=number] {
   font-family: inherit;
   font-size: 1em;
   padding-left: 0.5em;
@@ -134,4 +161,72 @@ select.size-to-icon-button {
   margin: 0em;
   height: 100%;
   background-color: #4d884e;
+}
+
+.setup-header {
+  padding: 1em;
+  padding-top: 1.2em;
+  padding-bottom: 1.2em;
+}
+
+.step-header {
+  font-weight: bold;
+  padding-left: 1em;
+  padding-right: 1em;
+  padding-top: 0em;
+  padding-bottom: 0em;
+}
+
+.step-header-num {
+  display: inline-block;
+  background-color: #e0e0e0;
+  padding: 0.5em;
+  padding-top: 0.3em;
+  padding-bottom: 0.3em;
+  border-radius: 0.5em;
+  margin-right: 0.5em;
+}
+
+.step-body {
+  padding: 0.5em;
+  padding-left: 1em;
+  padding-right: 1em;
+  text-align: center;
+}
+
+.step-body .step-form-table {
+  text-align: left;
+}
+
+.step-form-table tr:not(.additional-input-info) td:first-child:not(.fullwidth-text) {
+  text-align: right;
+}
+
+.material-symbols-outlined.inline-icon {
+  font-size: 1.6em;
+  transform: translateY(0.23em);
+}
+
+.step-form-table .material-symbols-outlined.info-icon {
+  font-size: 1em;
+  transform: translateY(0.13em);
+}
+
+.additional-input-info {
+  color: #666;
+}
+
+.additional-input-info td.small-info {
+  font-size: 0.8em;
+  padding-bottom: 1.5em;
+  padding-left: 3em;
+  padding-right: 3em;
+}
+
+.additional-input-info td:not(.small-info) {
+  padding-bottom: 1.4em;
+}
+
+.setup-step {
+  margin-bottom: 1.2em;
 }

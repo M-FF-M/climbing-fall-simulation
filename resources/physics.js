@@ -595,10 +595,12 @@ class RopeSegment {
     if (this.deflectionPointPositions[0] < this.minRestLength) { // the part between bodyA and first deflection point has become too short
       if (this.previousSegment === null) { // first rope segment
         if (this.deflectionPoints.length > 0) { // rope slips out of first deflection point
-          this.deflectionPointPositions[1] += this.deflectionPointPositions[0];
-          this.deflectionPoints.shift(); // remove deflection point from which the rope has slipped
-          this.deflectionPointSlidingSpeeds.shift();
-          this.deflectionPointPositions.shift();
+          if (this.bodyA.mass <= 1.2 * this.mass) { // rope only slips out if there is no significant mass (= big object) attached to this end
+            this.deflectionPointPositions[1] += this.deflectionPointPositions[0];
+            this.deflectionPoints.shift(); // remove deflection point from which the rope has slipped
+            this.deflectionPointSlidingSpeeds.shift();
+            this.deflectionPointPositions.shift();
+          }
         } else { // no deflection points and rest length becomes smaller than minimal rest length: should not be possible
           if (PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`first segment of rope too short: ${this.deflectionPointPositions[0]}`);
         }
@@ -631,10 +633,12 @@ class RopeSegment {
     if (this.deflectionPoints.length > 0 && this.deflectionPointPositions[this.deflectionPoints.length] < this.minRestLength) {
       if (this.followingSegment === null) { // last rope segment
         if (this.deflectionPoints.length > 0) { // rope slips out of last deflection point
-          this.deflectionPointPositions[this.deflectionPoints.length - 1] += this.deflectionPointPositions[this.deflectionPoints.length];
-          this.deflectionPoints.pop(); // remove deflection point from which the rope has slipped
-          this.deflectionPointSlidingSpeeds.pop();
-          this.deflectionPointPositions.pop();
+          if (this.bodyB.mass <= 1.2 * this.mass) { // rope only slips out if there is no significant mass (= big object) attached to this end
+            this.deflectionPointPositions[this.deflectionPoints.length - 1] += this.deflectionPointPositions[this.deflectionPoints.length];
+            this.deflectionPoints.pop(); // remove deflection point from which the rope has slipped
+            this.deflectionPointSlidingSpeeds.pop();
+            this.deflectionPointPositions.pop();
+          }
         } else { // no deflection points and rest length becomes smaller than minimal rest length: should not be possible
           if (PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`last segment of rope too short: ${this.deflectionPointPositions[0]}`);
         }
@@ -776,6 +780,8 @@ class Body {
     this.time = 0;
     /** @type {number} length (in seconds) of the averaging window used to average forces applied to the body */
     this.forceAvgWindow = 0.05; // average force over 50 ms to get a more "stable" maximum force
+    /** @type {boolean} whether to ignore this body when drawing force, position, energy or speed graphs */
+    this.ignoreInGraphs = false;
     PHYSICS_WORLD.bodies.push(this); // add body to physcics world (important to ensure that the body meets barrier constraints)
 
     /** @type {Color} color used for drawing this body */
@@ -867,6 +873,18 @@ class Body {
    * @return {ObjectSnapshot} a snapshot of the current state of the body
    */
   captureSnapshot() {
+    if (this.ignoreInGraphs) {
+      return {
+        type: 'point mass',
+        id: `${this.name} [${this.id}]`,
+        name: this.name,
+        visibleState: {
+          position: this.pos.arr,
+          color: this.drawingColor,
+          radius: this.drawingRadius
+        }
+      };
+    }
     const kin = this.currentKineticEnergy;
     const pot = this.currentPotentialEnergy;
     return {

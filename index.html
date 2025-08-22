@@ -15,14 +15,296 @@
   <script src="resources/geometry.js"></script>
   <script src="resources/units.js"></script>
   <script src="resources/physics.js"></script>
+  <script src="resources/globals.js"></script>
   <script src="resources/zoom.js"></script>
   <script src="resources/graphics.js"></script>
   <script src="resources/graphs.js"></script>
-  <script src="resources/globals.js"></script>
+  <script src="resources/setup-mask.js"></script>
   <script src="resources/layout.js"></script>
   <script src="main.js"></script>
 </head>
 
 <body onLoad="main();">
+
+  <div id="setup-mask">
+    <div class="setup-header">Choose simulation configuration <span id="version-info"></span></div>
+
+    <div class="setup-step" id="saved-configs">
+      <div class="step-header"><span class="step-header-num">1.</span> Choose configuration saved in browser or on disk <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+
+      <div class="step-body">
+        <form class="step-form">
+          <table class="step-form-table">
+            <tr class="additional-input-info">
+              <td colspan="2">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Saving and loading of simulation results or simulation configurations is currently <b>not yet supported</b>.
+                However, this feature will be added in the near future.
+              </td>
+            </tr>
+          </table>
+
+          <button type="submit">Manual configuration</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="setup-step" id="basic-setup">
+      <div class="step-header"><span class="step-header-num">1.</span> Basic setup <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+
+      <div class="step-body">
+        <form class="step-form">
+          <table class="step-form-table">
+            <tr class="additional-input-info">
+              <td colspan="2">
+                <span class="info-icon material-symbols-outlined">info</span>
+                This simulation runs in 3D space.
+                The belayer (or fixed anchor) is always assumed to be located at the point with x-, y-, and z-coordinate equal
+                to 0 meters. Everything else is placed relative to the belayer or fixed anchor. The simulation uses a coordinate
+                system where the y-coordinate corresponds to height, the x-axis runs orthogonal to the base of the climbing wall,
+                with greater x-coordinate values corresponding to a greater distance from the climbing wall, and the z-axis runs
+                parallel to the base of the climbing wall, that is, it can be used for placing objects to the side of the belayer.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="wall-angle">Wall angle:</label></td>
+              <td><input type="number" id="wall-angle" min="-30" max="70" value="10" step="0.5" /> degrees</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number in degrees, between -30 and 70. Positive values correspond to the angle at which the wall
+                is overhanging. 0&deg; corresponds to vertical, 70&deg; corresponds to an extremely overhanging wall, which is
+                almost a horizontal roof. Negative values correspond to inclined, slabby terrain.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="ground-present">Ground is present</label></td>
+              <td><input type="checkbox" id="ground-present" checked disabled /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Whether the ground is present at the height specified below. If unchecked (<b>currently not yet supported</b>),
+                no ground will be present in the simulation, which would correspond to multipitch settings, for example.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="ground-level">Ground level:</label></td>
+              <td><input type="number" id="ground-level" min="-8" max="0" value="0" step="0.01" /> meters</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number in meters, between -8 and 0. This number corresponds to how many meters the ground (if present at all)
+                is placed below the belayer (or fixed anchor). In a multipitch setting, you can use this to indicate that a big ledge
+                is located not far beneath the anchor, for example. If the ground is placed below a moving belayer, who is not attached
+                to an anchor, then the belayer will fall downwards at the start of the simulation.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="climber-height">Height of climber:</label></td>
+              <td><input type="number" id="climber-height" min="-2" max="50" value="6" step="0.01" /> meters</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number in meters, between -2 and 50. This corresponds to the number of meters the climber
+                is located above the belayer (or fixed anchor). Only values above the ground level are allowed.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="climber-sideways">Sideways shift of climber:</label></td>
+              <td><input type="number" id="climber-sideways" min="-25" max="25" value="0" step="0.01" /> meters</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number in meters, between -25 and 25. This corresponds to the number of meters the climber
+                is placed to the left (negative value) or to the right (positive value) of the belayer (or fixed anchor).
+              </td>
+            </tr>
+            <tr>
+              <td><label for="climber-weight">Weight of climber:</label></td>
+              <td><input type="number" id="climber-weight" min="1" max="150" value="70" step="0.1" /> kilograms</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a weight in kilograms, between 1 and 150.
+                The climber is currently represented only as a point of zero volume, but with a positive mass.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="last-draw-height">Height of last clipped draw:</label></td>
+              <td><input type="number" id="last-draw-height" min="-2" max="50" value="5" step="0.01" /> meters</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number in meters, between -2 and 50. This corresponds to the number of meters the last clipped
+                quick draw (or other protection point) is located above the belayer (or fixed anchor). Only values above the
+                ground level are allowed. This value is ignored if you specify 0 clipped draws in the next field.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="draw-number">Number of clipped draws:</label></td>
+              <td><input type="number" id="draw-number" min="0" max="15" value="3" step="1" /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number between 0 and 15. This corresponds to the number of clipped
+                quick draws (or other protection points) between the belayer (or fixed anchor) and the climber.
+                0 draws corresponds to a fall directly into the anchor (interesting for multipitch settings).
+                The exact positions of these draws can be adapted in the next step.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="fixed-anchor">Rope is attached to fixed anchor</label></td>
+              <td><input type="checkbox" id="fixed-anchor" /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Whether the belayer&rsquo;s end of the rope is attached to a fixed point. If this box is checked, the
+                end of the rope opposite to the climber&rsquo;s end is assumed to be fixedly attached to a protection point
+                in the wall with a knot. Otherwise, a moving belayer is assumed to be attached to the end of the rope.
+                <b>Rope slippage through a belay device is currently not supported</b>.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="belayer-fixed">Belayer attached to anchor</label></td>
+              <td><input type="checkbox" id="belayer-fixed" disabled /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Whether the belayer is attached to an anchor via a static or dynamic sling (<b>currently not yet supported</b>),
+                which is usually the case in multipitch settings.
+                If you have selected fixed anchor above, then this setting has no effect.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="belayer-weight">Weight of belayer:</label></td>
+              <td><input type="number" id="belayer-weight" min="1" max="150" value="70" step="0.1" /> kilograms</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a weight in kilograms, between 1 and 150.
+                The belayer is currently represented only as a point of zero volume, but with a positive mass.
+                If you have selected fixed anchor above, then this setting has no effect.
+              </td>
+            </tr>
+          </table>
+
+          <button type="reset">Back</button> <button type="submit">Next</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="setup-step" id="draw-setup">
+      <div class="step-header"><span class="step-header-num">1.</span> Quick draw positions <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+
+      <div class="step-body">
+        <form class="step-form">
+          <table class="step-form-table">
+            <tr class="additional-input-info">
+              <td colspan="2">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Here, you can change the height of every quick draw (or other protection point).
+                The draws are numbered from the belayer's (or fixed anchor's) side, starting with 1, in ascending
+                order up to the climber's side. Heights may be between -2 and 50 meters, and must be above the ground level.
+                Next to the height, you can also specify sideways shifts between -25 and 25 meters. These correspond to the
+                number of meters the corresponding draw is placed to the left (negative value) or to the right (positive value)
+                of the belayer (or fixed anchor).
+              </td>
+            </tr>
+          </table>
+
+          <button type="reset">Back</button> <button type="submit">Next</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="setup-step" id="physics-setup">
+      <div class="step-header"><span class="step-header-num">1.</span> Physics engine settings <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+
+      <div class="step-body">
+        <form class="step-form">
+          <table class="step-form-table">
+            <tr>
+              <td><label for="rope-segments">Rope segments:</label></td>
+              <td><input type="number" id="rope-segments" min="2" max="500" value="70" step="1" /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number between 2 and 500. This corresponds to the number of rope segments into which the
+                climbing rope is subdivided. The more segments, the more realistic the rope behavior will look in the
+                final simulation. However, a higher number also requires more processing power during the simulation,
+                that is, the simulation will take longer.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="physics-step-size">Step size:</label></td>
+              <td><input type="number" id="physics-step-size" min="0.0001" max="0.1" value="0.01" step="0.0001" /> milliseconds</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                The step size of a single simulation step. During such a step, constant forces are assumed,
+                and the forces are recalculated before every simulation step. This value must be small enough
+                in order to avoid instabilities. <span id="physics-step-size-info"></span>
+              </td>
+            </tr>
+          </table>
+
+          <button type="reset">Back</button> <button type="submit">Next</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="setup-step" id="simulation-start">
+      <div class="step-header"><span class="step-header-num">1.</span> Start the simulation <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+
+      <div class="step-body">
+        <form class="step-form">
+          <table class="step-form-table">
+            <tr>
+              <td><label for="frame-rate">Capturing frame rate:</label></td>
+              <td><input type="number" id="frame-rate" min="1" max="1000" value="40" step="1" /> FPS</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                The frame rate (number of frames per second) at which the simulation results will be captured. This is not related
+                to the step size of the physics simulation engine; instead, this just indicates at which rate simulation results will
+                be captured and stored for the resulting animation and graphs. To get a fluid animation, a frame rate of at least
+                30 FPS is recommended. If you want to view the result in slow motion, higher frame rates are necessary. This setting
+                also influences how many data points are available for the graphs displaying forces, energy, heights and speed of
+                the different objects. The higher the rate, the higher the resolution of these graphs.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="simulation-duration">Simulation time:</label></td>
+              <td><input type="number" id="simulation-duration" min="1" max="30" value="4" step="0.1" /> seconds</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Number of seconds for which the climbing fall should be simulated.
+              </td>
+            </tr>
+          </table>
+
+          <button type="reset">Back</button> <button type="submit">Start simulation</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
 </body>
 </html>

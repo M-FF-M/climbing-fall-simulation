@@ -13,5 +13,9 @@ const GLOBALS = {
   /** @type {Rope} the climbing rope in the simulation */
   rope: null,
   /** @type {Body[]} all the bodies relevant for displaying the simulation results */
-  bodies: []
+  bodies: [],
+  /** @type {string} current version number of the simulation */
+  version: '0.9.0',
+  /** @type {string} date of the current version */
+  versionDate: '2025-08-22'
 };

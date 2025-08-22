@@ -22,6 +22,10 @@ class FallSimulationLayout {
     /** @type {HTMLDivElement} draggable resize element */
     this.draggableResizer = document.createElement('div');
     this.draggableResizer.classList.add('resizer');
+    const resizerBullets = document.createElement('div');
+    resizerBullets.classList.add('resizer-bullets');
+    resizerBullets.textContent = '••••';
+    this.draggableResizer.appendChild(resizerBullets);
     this.flexContainer.appendChild(this.draggableResizer);
     /** @type {HTMLDivElement} right (or bottom) panel */
     this.rightPanel = document.createElement('div');
@@ -34,23 +38,6 @@ class FallSimulationLayout {
     this.headPanel.classList.add('left-head');
     this.headPanel.textContent = 'Climbing fall simulation';
     this.leftPanel.appendChild(this.headPanel);
-    /** @type {HTMLDivElement} progress info panel */
-    this.progressInfoPanel = document.createElement('div');
-    this.headPanel.appendChild(this.progressInfoPanel);
-    /** @type {HTMLSpanElement} progress info text */
-    this.progressInfoText = document.createElement('span');
-    this.progressInfoText.setAttribute('id', 'pinfo-text');
-    this.progressInfoText.textContent = 'Please wait…';
-    this.headPanel.appendChild(this.progressInfoText);
-    const space = document.createElement('span');
-    space.textContent = ' ';
-    this.headPanel.appendChild(space);
-    /** @type {HTMLInputElement} button for stopping the calculation */
-    this.stopCalculationBtn = document.createElement('input');
-    this.stopCalculationBtn.setAttribute('type', 'button');
-    this.stopCalculationBtn.setAttribute('value', 'Stop');
-    this.stopCalculationBtn.setAttribute('onclick', 'GLOBALS.interruptSimulation = true;');
-    this.headPanel.appendChild(this.stopCalculationBtn);
     /** @type {HTMLDivElement[]} main body panels (display the simulation result) */
     this.bodyPanels = [];
 
@@ -58,11 +45,17 @@ class FallSimulationLayout {
     this.rightSubpanels = [];
     this.rightSubpanels.push(document.createElement('div'));
     this.rightSubpanels[0].classList.add('section');
-    this.rightSubpanels[0].textContent = 'Simulation running…';
+    this.rightSubpanels[0].textContent = 'Please wait…';
     this.rightPanel.appendChild(this.rightSubpanels[0]);
     this.adjustPanelNumber(1, 1);
 
     document.body.appendChild(this.flexContainer);
+
+    /** @type {HTMLDivElement} the div element containing the UI for the simulation parameter selection */
+    this.setupMask = document.getElementById('setup-mask');
+    if (this.setupMask === null)
+      throw new Error('FallSimulationLayout expects a node with id setup-mask to be present directly in the HTML body!');
+    document.body.removeChild(this.setupMask);
 
     /** @type {boolean} whether the resizer is currently dragged by the user */
     this.resizerIsDragged = false;
@@ -141,14 +134,21 @@ class FallSimulationLayout {
     this.progressBar = null;
     /** @type {HTMLSpanElement|null} the hint text associated to the progress bar */
     this.progressBarText = null;
+    /** @type {HTMLDivElement|null} progress info panel */
+    this.progressInfoPanel = null;
+    /** @type {HTMLSpanElement|null} progress info text */
+    this.progressInfoText = null;
+    /** @type {HTMLInputElement|null} button for stopping the calculation */
+    this.stopCalculationBtn = null;
   }
 
   /**
    * Adjust how many panels should be visible
    * @param {number} leftPanelNum the number of panels on the left side (not counting the topmost panel with information text)
    * @param {number} rightPanelNum the number of panels on the right side (not counting the topmost panel with playback controls)
+   * @param {boolean} [resetStyle=false] wheter the CSS style of the left and right panels should be reset
    */
-  adjustPanelNumber(leftPanelNum, rightPanelNum) {
+  adjustPanelNumber(leftPanelNum, rightPanelNum, resetStyle = false) {
     while (this.bodyPanels.length > leftPanelNum) {
       this.leftPanel.removeChild(this.bodyPanels.pop());
       if (this.graphicsManagers.length > 0)
@@ -174,89 +174,290 @@ class FallSimulationLayout {
       this.rightSubpanels[i].textContent = '…';
       this.rightPanel.appendChild(this.rightSubpanels[i]);
     }
-    // TODO: should we also create new graphics managers and graph canvases here?
+    if (resetStyle) {
+      for (let i = 0; i < this.bodyPanels.length; i++) {
+        this.bodyPanels[i].style.overflow = 'visible';
+        this.bodyPanels[i].style.justifyContent = 'center';
+        this.bodyPanels[i].style.contain = 'none';
+      }
+      for (let i = 1; i < this.rightSubpanels.length; i++) {
+        this.rightSubpanels[i].style.overflow = 'visible';
+        this.rightSubpanels[i].style.justifyContent = 'center';
+        this.rightSubpanels[i].style.contain = 'none';
+      }
+    }
   }
 
   /**
-   * Run the simulation and save the body positions. Once the simulation is complete, the animation loop is started.
-   * @param {number} targetTime the duration (in seconds) for which the simulation should be run
-   * @param {number} [FPS=40] the frame rate at which snapshots should be captured
-   * @param {{time: number, bodies: ObjectSnapshot[]}[]} [prevSnapshots] array of snapshots that were already captured
-   * @param {number} [stepsDone=0] number of simulation steps that were already executed
-   * @param {number} [lastSnapshot=0] simulation time (in seconds) at which the last snapshot was captured
+   * Setup the layout used to allow the user to choose the simulation parameters
    */
-  precalculatePositions(targetTime, FPS = 40, prevSnapshots = [], stepsDone = 0, lastSnapshot = 0) {
-    if (prevSnapshots.length === 0 && stepsDone === 0 && lastSnapshot === 0) {
-      this.adjustPanelNumber(1, 1);
-      this.bodyPanels[0].replaceChildren();
+  setupInitializationLayout() {
+    this.adjustPanelNumber(1, 2, true);
+    
+    this.headPanel.textContent = 'Climbing fall simulation – Setup';
+    this.rightSubpanels[0].textContent = 'Setup preview';
+    this.rightSubpanels[1].textContent = '…';
+    this.rightSubpanels[2].textContent = '…';
+    this.bodyPanels[0].replaceChildren(this.setupMask);
+    this.bodyPanels[0].style.overflow = 'auto';
+    this.bodyPanels[0].style.justifyContent = 'start';
 
-      const hintText = document.createElement('div');
-      hintText.textContent = 'Simulation progress: ';
-      this.progressBarText = document.createElement('span');
-      this.progressBarText.textContent = '0 %';
-      hintText.appendChild(this.progressBarText);
-      hintText.style.textAlign = 'center';
-      hintText.style.marginBlock = '1em';
-      this.bodyPanels[0].appendChild(hintText);
+    document.getElementById('version-info').textContent = `(v${GLOBALS.version} of ${GLOBALS.versionDate})`;
 
-      const progrBar = document.createElement('div');
-      progrBar.classList.add('progress-bar-outer');
-      progrBar.style.width = '50%';
-      this.progressBar = document.createElement('div');
-      this.progressBar.classList.add('progress-bar-inner');
-      this.progressBar.style.width = '0%';
-      progrBar.appendChild(this.progressBar);
-      this.bodyPanels[0].appendChild(progrBar);
-    }
-    const lastTime = (new Date()).getTime();
-    const snapshots = [...prevSnapshots];
-    const addSnapshot = (t) => {
-      const bodyArr = [];
-      for (const body of GLOBALS.bodies) {
-        bodyArr.push(body.captureSnapshot());
-      }
-      snapshots.push({
-        time: t,
-        bodies: bodyArr
-      });
+    /** @type {HTMLDivElement[]} all the .setup-step elements in the setup workflow */
+    this.stepElements = this.setupMask.getElementsByClassName('setup-step');
+    /** @type {HTMLFormElement[]} all the form elements for every step in the setup workflow, same order as in the stepElements property */
+    this.stepForms = [];
+    /** @type {HTMLDivElement[]} all the ids of the form elements for every step in the setup workflow, same order as in the stepForms property */
+    this.stepFormTypes = [];
+    /** @type {number} the current step in the setup workflow */
+    this.currentSetupStep = 0;
+    /** @type {object} an object with the current setup settings */
+    this.setupMaskSettings = {
+      version: GLOBALS.version,
+      versionDate: GLOBALS.versionDate
     };
+    for (let i = 0; i < this.stepElements.length; i++) {
+      const stepNumber = this.stepElements[i].getElementsByClassName('step-header-num')[0];
+      stepNumber.textContent = `${i+1}.`;
+      const form = this.stepElements[i].getElementsByTagName('form')[0];
+      form.addEventListener('submit', (
+        (idx) => {
+          return (evt) => {
+            evt.preventDefault();
+            if (idx !== this.currentSetupStep) return;
+            if (this.currentSetupStep === this.stepElements.length - 1) {
+              verifySetupMaskStep(this.currentSetupStep, this.setupMaskSettings);
+              this.prepareAndStartSimulation();
+            } else {
+              verifySetupMaskStep(this.currentSetupStep, this.setupMaskSettings);
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = '#4d884e';
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '1';
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
+              this.currentSetupStep++;
+              if (this.stepFormTypes[this.currentSetupStep] === 'draw-setup') {
+                const numDraws = this.setupMaskSettings['draw-number'];
+                const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
+                const firstChild = table.getElementsByTagName('tr')[0];
+                table.replaceChildren(firstChild);
+                table.style.marginBottom = '1em';
+                if (numDraws == 0) {
+                  const tr = document.createElement('tr');
+                  const td = document.createElement('td');
+                  td.setAttribute('colspan', '2');
+                  td.classList.add('fullwidth-text');
+                  td.textContent = 'There is nothing to do in this step, as you specified that no draws have been clipped.';
+                  tr.appendChild(td);
+                  table.appendChild(tr);
 
-    if (prevSnapshots.length == 0) {
-      GLOBALS.rope.applyGravity(GRAVITY_VEC);
-      GLOBALS.rope.applyRopeForces();
-      addSnapshot(0);
-    }
-    const numSteps = Math.ceil(targetTime / GLOBALS.maxStep);
-    let i = stepsDone + 1;
-    for (; i <= numSteps; i++) {
-      GLOBALS.rope.timeStep(GLOBALS.maxStep);
-      ensureBarrierConstraints();
-      GLOBALS.rope.applyGravity(GRAVITY_VEC);
-      GLOBALS.rope.applyRopeForces();
-      if (i * GLOBALS.maxStep - lastSnapshot >= 1 / FPS) {
-        addSnapshot(i * GLOBALS.maxStep);
-        lastSnapshot = i * GLOBALS.maxStep;
-      }
-      if ((new Date()).getTime() - lastTime > 500) {
-        if (this.progressBar !== null)
-          this.progressBar.style.width = `${i / numSteps * 100}%`;
-        if (this.progressBarText !== null)
-          this.progressBarText.textContent = `${numToStr(i / numSteps * 100, 2, 5)} %`;
-        this.progressInfoText.textContent = `Progress: ${numToStr(i / numSteps * 100, 2, 5)} %, currently at time ${numToStr(i * GLOBALS.maxStep, 2, 11)} s`;
-        if (!GLOBALS.interruptSimulation) {
-          window.setTimeout(() => this.precalculatePositions(targetTime, FPS, snapshots, i, lastSnapshot), 10);
-          return;
-        } else {
-          i++;
-          break;
+                } else {
+                  for (let i = 0; i < numDraws; i++) {
+                    const tr = document.createElement('tr');
+                    const leftTd = document.createElement('td');
+                    const label = document.createElement('label');
+                    label.setAttribute('for', `draw-${i}-height`);
+                    label.textContent = `Height of draw ${(i+1)}:`;
+                    leftTd.appendChild(label);
+                    const rightTd = document.createElement('td');
+                    const input = document.createElement('input');
+                    input.setAttribute('id', `draw-${i}-height`);
+                    input.setAttribute('type', 'number');
+                    input.setAttribute('min', '-2');
+                    input.setAttribute('max', '50');
+                    input.setAttribute('step', '0.01');
+                    if (i == numDraws - 1) input.setAttribute('disabled', 'disabled');
+                    input.value = Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
+                    input.defaultValue = Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
+                    const units = document.createElement('span');
+                    units.textContent = ' meters';
+                    rightTd.appendChild(input);
+                    rightTd.appendChild(units);
+                    tr.appendChild(leftTd);
+                    tr.appendChild(rightTd);
+                    table.appendChild(tr);
+                    
+                    const tr2 = document.createElement('tr');
+                    const leftTd2 = document.createElement('td');
+                    const label2 = document.createElement('label');
+                    label2.setAttribute('for', `draw-${i}-sideways`);
+                    label2.textContent = `Sideways shift of draw ${(i+1)}:`;
+                    leftTd2.appendChild(label2);
+                    const rightTd2 = document.createElement('td');
+                    const input2 = document.createElement('input');
+                    input2.setAttribute('id', `draw-${i}-sideways`);
+                    input2.setAttribute('type', 'number');
+                    input2.setAttribute('min', '-25');
+                    input2.setAttribute('max', '25');
+                    input2.setAttribute('step', '0.01');
+                    input2.value = 0;
+                    input2.defaultValue = 0;
+                    const units2 = document.createElement('span');
+                    units2.textContent = ' meters';
+                    rightTd2.appendChild(input2);
+                    rightTd2.appendChild(units2);
+                    tr2.appendChild(leftTd2);
+                    tr2.appendChild(rightTd2);
+                    table.appendChild(tr2);
+                  }
+                }
+              }
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
+            }
+          };
         }
-      }
-      this.simulationDuration = i * GLOBALS.maxStep;
+      )(i));
+      form.addEventListener('reset', (
+        (idx) => {
+          return (evt) => {
+            if (idx !== this.currentSetupStep) {
+              evt.preventDefault();
+              return;
+            }
+            if (this.currentSetupStep === 0) return;
+            deleteSetupMaskStepSettings(this.currentSetupStep, this.setupMaskSettings);
+            this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
+            this.currentSetupStep--;
+            this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = 'black';
+            this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '0';
+            this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
+          };
+        }
+      )(i));
+      this.stepForms.push(form);
+      this.stepFormTypes.push(this.stepElements[i].getAttribute('id'));
+      this.stepElements[i].getElementsByClassName('step-done')[0].style.opacity = '0';
+      if (i > 0)
+        this.stepElements[i].getElementsByClassName('step-body')[0].style.display = 'none';
     }
+  }
+
+  /**
+   * Prepare the simulation objects and start the simulation. Settings are read from the setupMaskSettings property.
+   */
+  prepareAndStartSimulation() {
+    GLOBALS.wallAngle = this.setupMaskSettings['wall-angle']; // overhanging degrees
+
+    GLOBALS.startHeight = this.setupMaskSettings['climber-height']; // height of climber above ground / belay
+    GLOBALS.climberMass = this.setupMaskSettings['climber-weight'];
+    GLOBALS.climber = new Body(
+      GLOBALS.startHeight * Math.tan(Math.PI * GLOBALS.wallAngle / 180) - 0.2 - 0.01 + 0.02 * Math.random(),
+      GLOBALS.startHeight,
+      this.setupMaskSettings['climber-sideways'] - 0.01 + 0.02 * Math.random(),
+      GLOBALS.climberMass,
+      'climber'
+    );
+    GLOBALS.climber.drawingColor = new Color(151, 95, 96);
+    // GLOBALS.climber.velocity = new V(0, 0, 0);
+
+    GLOBALS.anchorHeight = 0;
+    GLOBALS.anchorMass = this.setupMaskSettings['fixed-anchor'] ? 0 : this.setupMaskSettings['belayer-weight'];
+    GLOBALS.anchor = new Body(-0.01 + 0.02 * Math.random(), GLOBALS.anchorHeight, -0.01 + 0.02 * Math.random(), GLOBALS.anchorMass, 'belayer');
+    GLOBALS.anchor.drawingColor = new Color(77, 136, 78);
+
+    GLOBALS.ropeLength = 0;
+    GLOBALS.lastDrawHeight = (this.setupMaskSettings['draw-number'] > 0) ? this.setupMaskSettings['last-draw-height'] : 0; // height of last draw above ground / belay (set to 0 for no deflection point)
+    const deflectionPoints = [];
+    let lastPos = GLOBALS.anchor.pos;
+    for (let i = 0; i < this.setupMaskSettings['draw-number']; i++) {
+      const nDeflPt = new Body(
+        this.setupMaskSettings[`draw-${i}-height`] * Math.tan(Math.PI * GLOBALS.wallAngle / 180) - 0.4 - 0.01 + 0.02 * Math.random(), // x coordinate
+        this.setupMaskSettings[`draw-${i}-height`], // y coordinate
+        this.setupMaskSettings[`draw-${i}-sideways`] - 0.01 + 0.02 * Math.random(), // z coordinate
+        0,
+        'quickdraw'
+      );
+      nDeflPt.drawingColor = new Color(52, 90, 93);
+      if (i != this.setupMaskSettings['draw-number'] - 1)
+        nDeflPt.ignoreInGraphs = true;
+      deflectionPoints.push(nDeflPt);
+      const segLen = nDeflPt.pos.minus(lastPos).norm();
+      GLOBALS.ropeLength += segLen;
+      lastPos = nDeflPt.pos;
+    }
+    const finalSegLen = GLOBALS.climber.pos.minus(lastPos).norm();
+    GLOBALS.ropeLength += finalSegLen + 0.1; // 10 cm slack
+    GLOBALS.ropeSegmentNum = this.setupMaskSettings['rope-segments'];
+    // GLOBALS.climber.mass = (GLOBALS.ropeLength * 0.062) / (GLOBALS.ropeSegmentNum - 1); GLOBALS.climberMass = GLOBALS.climber.mass; // no climber at the end of the rope
+
+    GLOBALS.deflectionPoint = (this.setupMaskSettings['draw-number'] > 0) ? deflectionPoints[deflectionPoints.length - 1] : null;
+    // GLOBALS.deflectionPoint.frictionCoefficient = 0;
+
+    GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber, ...deflectionPoints);
+    GLOBALS.rope.drawingColor = new Color(241, 160, 45);
     
-    this.progressInfoText.textContent = `Simulation ${i-1 == numSteps ? '' : '(partially) '}completed, up to time ${numToStr((i-1) * GLOBALS.maxStep, 2, 11)} s`;
-    
-    this.adjustPanelNumber(2, 3);
+    addWorldBarrier(new V(Math.cos(Math.PI * GLOBALS.wallAngle / 180), -Math.sin(Math.PI * GLOBALS.wallAngle / 180), 0), new V(-0.5, 0, 0), 'wall');
+    if (this.setupMaskSettings['ground-present'])
+      addWorldBarrier(new V(0, 1, 0), new V(0, this.setupMaskSettings['ground-level'], 0), 'floor');
+
+    GLOBALS.bodies = [
+      ...deflectionPoints,
+      GLOBALS.rope,
+      GLOBALS.anchor,
+      GLOBALS.climber
+    ];
+
+    GLOBALS.maxStep = this.setupMaskSettings['physics-step-size'] / 1000;
+
+    const FPS = this.setupMaskSettings['frame-rate'];
+    const targetTime = this.setupMaskSettings['simulation-duration'];
+    this.precalculatePositions(targetTime, FPS);
+  }
+
+  /**
+   * Setup the layout to show information about the currently running simulation
+   */
+  setupSimulationRunningLayout() {
+    this.adjustPanelNumber(1, 1, true);
+
+    this.headPanel.textContent = 'Climbing fall simulation';
+    this.progressInfoPanel = document.createElement('div');
+    this.headPanel.appendChild(this.progressInfoPanel);
+    this.progressInfoText = document.createElement('span');
+    this.progressInfoText.setAttribute('id', 'pinfo-text');
+    this.progressInfoText.textContent = 'Please wait…';
+    this.headPanel.appendChild(this.progressInfoText);
+    const space = document.createElement('span');
+    space.textContent = ' ';
+    this.headPanel.appendChild(space);
+    this.stopCalculationBtn = document.createElement('input');
+    this.stopCalculationBtn.setAttribute('type', 'button');
+    this.stopCalculationBtn.setAttribute('value', 'Stop');
+    this.stopCalculationBtn.setAttribute('onclick', 'GLOBALS.interruptSimulation = true;');
+    this.headPanel.appendChild(this.stopCalculationBtn);
+
+    this.rightSubpanels[0].textContent = 'Simulation running…';
+    const infoTextDiv = document.createElement('div');
+    infoTextDiv.style.width = '50%';
+    infoTextDiv.textContent = 'You may stop the simulation at any time with the [Stop] button on the upper left to view partial simulation results. Simulation results will be displayed here automatically once the simulation is complete.'; // TODO: If the simulation progress is very slow, you might also want to consider loading one of the precalculated scenarios instead.';
+    this.rightSubpanels[1].replaceChildren(infoTextDiv);
+
+    this.bodyPanels[0].replaceChildren();
+    const hintText = document.createElement('div');
+    hintText.textContent = 'Simulation progress: ';
+    this.progressBarText = document.createElement('span');
+    this.progressBarText.textContent = '0 %';
+    hintText.appendChild(this.progressBarText);
+    hintText.style.textAlign = 'center';
+    hintText.style.marginBlock = '1em';
+    this.bodyPanels[0].appendChild(hintText);
+
+    const progrBar = document.createElement('div');
+    progrBar.classList.add('progress-bar-outer');
+    progrBar.style.width = '50%';
+    this.progressBar = document.createElement('div');
+    this.progressBar.classList.add('progress-bar-inner');
+    this.progressBar.style.width = '0%';
+    progrBar.appendChild(this.progressBar);
+    this.bodyPanels[0].appendChild(progrBar);
+  }
+
+  /**
+   * Setup the layout to show the simulation results
+   */
+  setupSimulationResultLayout() {
+    this.headPanel.removeChild(this.stopCalculationBtn);
+    this.adjustPanelNumber(2, 3, true);
+
     this.previousFrameBtn = document.createElement('button');
     this.previousFrameBtn.classList.add('material-symbols-outlined');
     this.previousFrameBtn.classList.add('icon-button');
@@ -293,6 +494,7 @@ class FallSimulationLayout {
         window.requestAnimationFrame(() => this.playInLoop());
       }
     });
+
     this.selectPlaybackSpeed = document.createElement('select');
     const opt1 = document.createElement('option'); opt1.textContent = '1×'; opt1.setAttribute('value', '1'); opt1.setAttribute('selected', 'selected');
     const opt2 = document.createElement('option'); opt2.textContent = '0.5×'; opt2.setAttribute('value', '1/2');
@@ -318,14 +520,81 @@ class FallSimulationLayout {
     const graphTypes = ['forces', 'energy', 'positions']; // + 'speed'
     for (let i = 1; i < this.rightSubpanels.length; i++) {
       this.graphCanvases.push(
-        new GraphCanvas(this.rightSubpanels[i], snapshots, graphTypes[(i-1) % graphTypes.length])
+        new GraphCanvas(this.rightSubpanels[i], this.snapshots, graphTypes[(i-1) % graphTypes.length])
       );
     }
     
-    this.lastFrameGlobTime = (new Date()).getTime() / 1000;
-    this.lastFrameSimTime = 0;
+    for (let i = 0; i < this.bodyPanels.length; i++) {
+      this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0)));
+    }
+  }
+
+  /**
+   * Run the simulation and save the body positions. Once the simulation is complete, the animation loop is started.
+   * @param {number} targetTime the duration (in seconds) for which the simulation should be run
+   * @param {number} [FPS=40] the frame rate at which snapshots should be captured
+   * @param {{time: number, bodies: ObjectSnapshot[]}[]} [prevSnapshots] array of snapshots that were already captured
+   * @param {number} [stepsDone=0] number of simulation steps that were already executed
+   * @param {number} [lastSnapshot=0] simulation time (in seconds) at which the last snapshot was captured
+   */
+  precalculatePositions(targetTime, FPS = 40, prevSnapshots = [], stepsDone = 0, lastSnapshot = 0) {
+    if (prevSnapshots.length === 0 && stepsDone === 0 && lastSnapshot === 0)
+      this.setupSimulationRunningLayout();
+    const lastTime = (new Date()).getTime();
+    const snapshots = [...prevSnapshots];
+    const addSnapshot = (t) => {
+      const bodyArr = [];
+      for (const body of GLOBALS.bodies) {
+        bodyArr.push(body.captureSnapshot());
+      }
+      snapshots.push({
+        time: t,
+        bodies: bodyArr
+      });
+    };
+
+    if (prevSnapshots.length == 0) {
+      GLOBALS.rope.applyGravity(GRAVITY_VEC);
+      GLOBALS.rope.applyRopeForces();
+      addSnapshot(0);
+    }
+    const numSteps = Math.ceil(targetTime / GLOBALS.maxStep);
+    let i = stepsDone + 1;
+    for (; i <= numSteps; i++) {
+      GLOBALS.rope.timeStep(GLOBALS.maxStep);
+      ensureBarrierConstraints();
+      GLOBALS.rope.applyGravity(GRAVITY_VEC);
+      GLOBALS.rope.applyRopeForces();
+      if (i * GLOBALS.maxStep - lastSnapshot >= 1 / FPS) {
+        addSnapshot(i * GLOBALS.maxStep);
+        lastSnapshot = i * GLOBALS.maxStep;
+      }
+      if ((new Date()).getTime() - lastTime > 500) {
+        if (this.progressBar !== null)
+          this.progressBar.style.width = `${i / numSteps * 100}%`;
+        if (this.progressBarText !== null)
+          this.progressBarText.textContent = `${numToStr(i / numSteps * 100, 2, 5)} %`;
+        if (this.progressInfoText !== null)
+          this.progressInfoText.textContent = `Progress: ${numToStr(i / numSteps * 100, 2, 5)} %, currently at time ${numToStr(i * GLOBALS.maxStep, 2, 11)} s`;
+        if (!GLOBALS.interruptSimulation) {
+          window.setTimeout(() => this.precalculatePositions(targetTime, FPS, snapshots, i, lastSnapshot), 10);
+          return;
+        } else {
+          i++;
+          break;
+        }
+      }
+      this.simulationDuration = i * GLOBALS.maxStep;
+    }
+    
+    this.progressInfoText.textContent = `Simulation ${i-1 == numSteps ? '' : '(partially) '}completed, up to time ${numToStr((i-1) * GLOBALS.maxStep, 2, 11)} s`;
+    
     this.snapshots = snapshots;
     this.snapshotFPS = FPS;
+    this.setupSimulationResultLayout();
+    
+    this.lastFrameGlobTime = (new Date()).getTime() / 1000;
+    this.lastFrameSimTime = 0;
     window.requestAnimationFrame(() => this.playInLoop());
   }
 
@@ -369,11 +638,6 @@ class FallSimulationLayout {
    */
   drawSnapshotAtIndex(idx) {
     const cSnapshot = this.snapshots[idx];
-    if (this.graphicsManagers.length === 0) {
-      for (let i = 0; i < this.bodyPanels.length; i++) {
-        this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0)));
-      }
-    }
     for (const graphicsManager of this.graphicsManagers)
       graphicsManager.drawSnapshot(cSnapshot.bodies, cSnapshot.time);
     for (const graphCan of this.graphCanvases) {

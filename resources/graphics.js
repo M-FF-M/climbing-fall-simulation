@@ -88,10 +88,10 @@ class WorldGraphics {
     const normalCam = this.xyProjectionMode ? new V(0, 0, 1) : new V(-1, 0, 0); // normal pointing from the camera towards the scene
     const can = this.can;
     // bounding box for barriers
-    const leftBoundary = -10; // left boundary: 10 meters to the left of origin
-    const rightBoundary = 10; // right boundary: 10 meters to the right of origin
-    const bottomBoundary = -2; // bottom boundary: 2 meters below origin
-    const topBoundary = 20; // top boundary: 20 meters above origin
+    const leftBoundary = -30; // left boundary: 10 meters to the left of origin
+    const rightBoundary = 30; // right boundary: 10 meters to the right of origin
+    const bottomBoundary = -10; // bottom boundary: 2 meters below origin
+    const topBoundary = 55; // top boundary: 20 meters above origin
 
     if (Math.abs(normal.dot(normalCam)) < GEOMETRY_EPS) { // only a line is visible from the direction of the camera
       // first, we project the barrier onto the "camera" plane
