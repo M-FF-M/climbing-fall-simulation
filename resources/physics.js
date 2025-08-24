@@ -945,3 +945,11 @@ function ensureBarrierConstraints() {
     }
   }
 }
+
+/**
+ * Remove all bodies and barriers from the physics world
+ */
+function clearPhysicsWorld() {
+  PHYSICS_WORLD.bodies = [];
+  PHYSICS_WORLD.barriers = [];
+}

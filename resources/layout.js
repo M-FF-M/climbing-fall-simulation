@@ -120,6 +120,8 @@ class FallSimulationLayout {
     this.isPaused = false;
     /** @type {WorldGraphics[]} the main simulation drawing utilities (potential from multiple perspectives) */
     this.graphicsManagers = [];
+    /** @type {WorldGraphics[]} the simulation preview drawing utilities */
+    this.previewManagers = [];
     /** @type {GraphCanvas[]} the graph drawing utilities */
     this.graphCanvases = [];
     /** @type {{time: number, bodies: ObjectSnapshot[]}[]} the captured simulation snapshots */
@@ -150,9 +152,9 @@ class FallSimulationLayout {
    */
   adjustPanelNumber(leftPanelNum, rightPanelNum, resetStyle = false) {
     while (this.bodyPanels.length > leftPanelNum) {
+      while (this.graphicsManagers.length > this.bodyPanels.length - 1)
+        this.graphicsManagers.pop().destroy();
       this.leftPanel.removeChild(this.bodyPanels.pop());
-      if (this.graphicsManagers.length > 0)
-        this.graphicsManagers.pop();
     }
     while (this.bodyPanels.length < leftPanelNum) {
       this.bodyPanels.push(document.createElement('div'));
@@ -163,9 +165,9 @@ class FallSimulationLayout {
       this.leftPanel.appendChild(this.bodyPanels[i]);
     }
     while (this.rightSubpanels.length > rightPanelNum + 1) {
+      while (this.graphCanvases.length > this.rightSubpanels.length - 2)
+        this.graphCanvases.pop().destroy();
       this.rightPanel.removeChild(this.rightSubpanels.pop());
-      if (this.graphCanvases.length > 0)
-        this.graphCanvases.pop();
     }
     while (this.rightSubpanels.length < rightPanelNum + 1) {
       this.rightSubpanels.push(document.createElement('div'));
@@ -190,17 +192,24 @@ class FallSimulationLayout {
 
   /**
    * Setup the layout used to allow the user to choose the simulation parameters
+   * @param {object} [defaultSettings] an object containing the default values for all the inputs (useful if the user pre-loaded a configuration)
    */
-  setupInitializationLayout() {
+  setupInitializationLayout(defaultSettings = {}) {
     this.adjustPanelNumber(1, 2, true);
     
     this.headPanel.textContent = 'Climbing fall simulation – Setup';
     this.rightSubpanels[0].textContent = 'Setup preview';
-    this.rightSubpanels[1].textContent = '…';
-    this.rightSubpanels[2].textContent = '…';
+    for (let i = 1; i < this.rightSubpanels.length; i++) {
+      this.previewManagers.push(new WorldGraphics(this.rightSubpanels[i], (i % 2 != 0)));
+    }
     this.bodyPanels[0].replaceChildren(this.setupMask);
     this.bodyPanels[0].style.overflow = 'auto';
     this.bodyPanels[0].style.justifyContent = 'start';
+    /** @type {object} an object with the current default setup settings */
+    this.setupMaskDefaultSettings = { ...defaultSettings };
+    delete this.setupMaskDefaultSettings['version'];
+    delete this.setupMaskDefaultSettings['versionDate'];
+    changeSetupDefaults(this.setupMaskDefaultSettings);
 
     document.getElementById('version-info').textContent = `(v${GLOBALS.version} of ${GLOBALS.versionDate})`;
 
@@ -208,7 +217,7 @@ class FallSimulationLayout {
     this.stepElements = this.setupMask.getElementsByClassName('setup-step');
     /** @type {HTMLFormElement[]} all the form elements for every step in the setup workflow, same order as in the stepElements property */
     this.stepForms = [];
-    /** @type {HTMLDivElement[]} all the ids of the form elements for every step in the setup workflow, same order as in the stepForms property */
+    /** @type {string[]} all the ids of the form elements for every step in the setup workflow, same order as in the stepForms property */
     this.stepFormTypes = [];
     /** @type {number} the current step in the setup workflow */
     this.currentSetupStep = 0;
@@ -266,8 +275,12 @@ class FallSimulationLayout {
                     input.setAttribute('max', '50');
                     input.setAttribute('step', '0.01');
                     if (i == numDraws - 1) input.setAttribute('disabled', 'disabled');
-                    input.value = Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
-                    input.defaultValue = Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
+                    input.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-height`)
+                      ? this.setupMaskDefaultSettings[`draw-${i}-height`]
+                      : Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
+                    input.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-height`)
+                      ? this.setupMaskDefaultSettings[`draw-${i}-height`]
+                      : Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
                     const units = document.createElement('span');
                     units.textContent = ' meters';
                     rightTd.appendChild(input);
@@ -289,8 +302,12 @@ class FallSimulationLayout {
                     input2.setAttribute('min', '-25');
                     input2.setAttribute('max', '25');
                     input2.setAttribute('step', '0.01');
-                    input2.value = 0;
-                    input2.defaultValue = 0;
+                    input2.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-sideways`)
+                      ? this.setupMaskDefaultSettings[`draw-${i}-sideways`]
+                      : Math.round(100 * (i+1) * this.setupMaskSettings['climber-sideways'] / (numDraws + 1)) / 100;
+                    input2.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-sideways`)
+                      ? this.setupMaskDefaultSettings[`draw-${i}-sideways`]
+                      : Math.round(100 * (i+1) * this.setupMaskSettings['climber-sideways'] / (numDraws + 1)) / 100;
                     const units2 = document.createElement('span');
                     units2.textContent = ' meters';
                     rightTd2.appendChild(input2);
@@ -306,23 +323,52 @@ class FallSimulationLayout {
           };
         }
       )(i));
-      form.addEventListener('reset', (
-        (idx) => {
-          return (evt) => {
-            if (idx !== this.currentSetupStep) {
-              evt.preventDefault();
-              return;
+      if (form.getElementsByClassName('back-button').length > 0) {
+        form.getElementsByClassName('back-button')[0].addEventListener('click', (
+          (idx) => {
+            return (evt) => {
+              if (idx !== this.currentSetupStep) {
+                evt.preventDefault();
+                return;
+              }
+              if (this.currentSetupStep === 0) return;
+              deleteSetupMaskStepSettings(this.currentSetupStep, this.setupMaskSettings);
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
+              this.currentSetupStep--;
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = 'black';
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '0';
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
+            };
+          }
+        )(i));
+      }
+      const drawPreview = (idx) => {
+        return (evt) => {
+          if (idx !== this.currentSetupStep) return;
+          if (evt.target && (evt.target.getAttribute('id') === 'draw-number' || evt.target.getAttribute('id') === 'last-draw-height' || evt.target.getAttribute('id') === 'climber-sideways')) {
+            const drawSetupStep = this.stepFormTypes.indexOf('draw-setup');
+            if (drawSetupStep != -1) {
+              const table = this.stepForms[drawSetupStep].getElementsByClassName('step-form-table')[0];
+              const firstChild = table.getElementsByTagName('tr')[0];
+              table.replaceChildren(firstChild);
             }
-            if (this.currentSetupStep === 0) return;
-            deleteSetupMaskStepSettings(this.currentSetupStep, this.setupMaskSettings);
-            this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
-            this.currentSetupStep--;
-            this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = 'black';
-            this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '0';
-            this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
-          };
-        }
-      )(i));
+          }
+          const currentSettings = this.setupMaskSettings;
+          const allSettings = fillWithRemainingSteps(this.currentSetupStep,currentSettings, this.setupMaskDefaultSettings);
+          this.setupMaskSettings = allSettings;
+          this.prepareAndStartSimulation(false);
+          this.setupMaskSettings = currentSettings;
+          const bodyArr = [];
+          for (const body of GLOBALS.bodies) {
+            bodyArr.push(body.captureSnapshot());
+          }
+          for (const pm of this.previewManagers)
+            pm.drawSnapshot(bodyArr, 0);
+        };
+      };
+      form.addEventListener('input', drawPreview(i));
+      form.addEventListener('reset', evt => setTimeout(() => (drawPreview(i))(evt), 0));
+      (drawPreview(0))({});
       this.stepForms.push(form);
       this.stepFormTypes.push(this.stepElements[i].getAttribute('id'));
       this.stepElements[i].getElementsByClassName('step-done')[0].style.opacity = '0';
@@ -333,8 +379,11 @@ class FallSimulationLayout {
 
   /**
    * Prepare the simulation objects and start the simulation. Settings are read from the setupMaskSettings property.
+   * @param {boolean} [startSimulation=true] whether to start the simulation. If set to false, only the simulation objects are set up
    */
-  prepareAndStartSimulation() {
+  prepareAndStartSimulation(startSimulation = true) {
+    clearPhysicsWorld();
+
     GLOBALS.wallAngle = this.setupMaskSettings['wall-angle']; // overhanging degrees
 
     GLOBALS.startHeight = this.setupMaskSettings['climber-height']; // height of climber above ground / belay
@@ -398,9 +447,13 @@ class FallSimulationLayout {
 
     GLOBALS.maxStep = this.setupMaskSettings['physics-step-size'] / 1000;
 
-    const FPS = this.setupMaskSettings['frame-rate'];
-    const targetTime = this.setupMaskSettings['simulation-duration'];
-    this.precalculatePositions(targetTime, FPS);
+    if (startSimulation) {
+      const FPS = this.setupMaskSettings['frame-rate'];
+      const targetTime = this.setupMaskSettings['simulation-duration'];
+      for (const pm of this.previewManagers)
+        pm.destroy();
+      this.precalculatePositions(targetTime, FPS);
+    }
   }
 
   /**

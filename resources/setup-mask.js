@@ -37,10 +37,11 @@ const SETUP_MASK_STEPS = {
 }
 
 /**
- * @param {HTMLInputElement} input
- * @param {number} value
- * @param {number} [additionalMinimum]
- * @return {number}
+ * Ensure that a number value read from an input element meets the specified input limits
+ * @param {HTMLInputElement} input the input element the number was read from
+ * @param {number} value the parsed numeric value
+ * @param {number} [additionalMinimum] if supplied, the value must also be >= this additionalMinimum
+ * @return {number} the original parsed number if it is within the specified limits, otherwise one of the two limits, depending on which one is closer to the parsed number
  */
 function ensureLimitsMet(input, value, additionalMinimum = -Infinity) {
   let min = -Infinity;
@@ -59,10 +60,11 @@ function ensureLimitsMet(input, value, additionalMinimum = -Infinity) {
 }
 
 /**
- * @param {HTMLInputElement} input
- * @param {'float'|'int'} type
- * @param {number} [additionalMinimum]
- * @return {number}
+ * Read a number from an input element, ensuring that it meets the specified limits and returning the default value if the input cannot be interpreted as a number
+ * @param {HTMLInputElement} input the input element from which the number should be read
+ * @param {'float'|'int'} type whether the number should be a floating point number or an integer
+ * @param {number} [additionalMinimum] if supplied, the returned value must also satisfy >= this additionalMinimum
+ * @return {number} the parsed numeric value
  */
 function readNumberFromInput(input, type, additionalMinimum = -Infinity) {
   let val = input.value;
@@ -84,10 +86,15 @@ function readNumberFromInput(input, type, additionalMinimum = -Infinity) {
 }
 
 /**
- * @param {number} stepNumber
- * @param {object} settingsObject
+ * Read all the user-supplied values for one step in the setup mask and ensure that they meet the specifications
+ * @param {number} stepNumber the number of the step in the setup mask for which the values should be read
+ * @param {object} settingsObject an object in which the data from the inputs will be stored
  */
 function verifySetupMaskStep(stepNumber, settingsObject) {
+  if (stepNumber < 0 || stepNumber >= SETUP_MASK_STEPS.order.length) {
+    console.warn(`Invalid step number in verifySetupMaskStep: ${stepNumber}`);
+    return;
+  }
   const stepId = SETUP_MASK_STEPS.order[stepNumber];
   if (stepId === 'draw-setup') {
     let i = 0;
@@ -115,8 +122,9 @@ function verifySetupMaskStep(stepNumber, settingsObject) {
 }
 
 /**
- * @param {number} stepNumber
- * @param {object} settingsObject
+ * Remove all the properties added to the settings object after a given step of the setup mask
+ * @param {number} stepNumber the number of the step in the setup mask for which the values should be read
+ * @param {object} settingsObject the object from which the relevant properties (relevant for the given step) will be removed
  */
 function deleteSetupMaskStepSettings(stepNumber, settingsObject) {
   const stepId = SETUP_MASK_STEPS.order[stepNumber];
@@ -132,4 +140,38 @@ function deleteSetupMaskStepSettings(stepNumber, settingsObject) {
       delete settingsObject[id];
     }
   }
+}
+
+/**
+ * Change the default values of all the inputs if the user pre-loaded a specific configuration
+ * @param {object} defaultObject the desired default values
+ */
+function changeSetupDefaults(defaultObject) {
+  for (const prop of Object.keys(defaultObject)) {
+    if (document.getElementById(prop) !== null) {
+      document.getElementById(prop).value = defaultObject[prop];
+      document.getElementById(prop).defaultValue = defaultObject[prop];
+    }
+  }
+}
+
+/**
+ * Read all the user-supplied values for the steps which were not yet completed in the setup mask (will result in reading the default values from the inputs)
+ * @param {number} stepNumber the number of the first step in the setup mask which was not yet completed by the user
+ * @param {object} settingsObject an object in which the data from the steps which were already completed is stored
+ * @param {object} [defaultObject] an object containing the default values (useful if the user pre-loaded a configuration)
+ * @return {object} a copy of settingsObject, filled with the properties from the remaining steps
+ */
+function fillWithRemainingSteps(stepNumber, settingsObject, defaultObject = {}) {
+  const retObj = { ...settingsObject };
+  for (let i = stepNumber; i < SETUP_MASK_STEPS.order.length; i++) {
+    verifySetupMaskStep(i, retObj);
+    if ((SETUP_MASK_STEPS.order[i] === 'draw-setup') && (retObj['draw-number'] > 0) && (!retObj.hasOwnProperty('draw-0-height'))) {
+      for (let k = 0; k < retObj['draw-number']; k++) {
+        retObj[`draw-${k}-height`] = defaultObject.hasOwnProperty(`draw-${k}-height`) ? defaultObject[`draw-${k}-height`] : Math.round(100 * (k+1) * retObj['last-draw-height'] / retObj['draw-number']) / 100;
+        retObj[`draw-${k}-sideways`] = defaultObject.hasOwnProperty(`draw-${k}-sideways`) ? defaultObject[`draw-${k}-sideways`] : Math.round(100 * (k+1) * retObj['climber-sideways'] / (retObj['draw-number'] + 1)) / 100;
+      }
+    }
+  }
+  return retObj;
 }

@@ -208,4 +208,11 @@ class GraphCanvas {
 
     can.drawGrid(['s', GRAPH_PROPERTIES[this.graphType].unit], false, [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
   }
+
+  /**
+   * Destroy the zoomable canvas (remove canvas from parent)
+   */
+  destroy() {
+    this.can.destroy();
+  }
 }

@@ -5,13 +5,14 @@
  * @param {number} [digitsAfterPoint=2] the number of digits after the decimal point
  * @param {number} [fixedLength=-1] the desired length of the string in characters (use -1 for variable length depending on the number)
  * @param {number} [dotPosition=6] how many characters should follow after the decimal point, only used if fixedLength > 0; useful for aligning numbers
+ * @param {boolean} [forceFixed=false] whether to force to fixed length of the string, even if that means that the number will be rounded to 0 or cut off
  * @return {string} the formatted number
  */
-function numToStr(num, digitsAfterPoint = 2, fixedLength = -1, dotPosition = 6) {
+function numToStr(num, digitsAfterPoint = 2, fixedLength = -1, dotPosition = 6, forceFixed = false) {
   let numFormatted;
   const sign = (num < 0) ? '-' : '';
   num = Math.abs(num);
-  if ((num >= 0.01 && num < 1000) || (num == 0)) numFormatted = num.toFixed(digitsAfterPoint);
+  if (forceFixed || (num >= 0.01 && num < 1000) || (num == 0)) numFormatted = num.toFixed(digitsAfterPoint);
   else numFormatted = num.toExponential(digitsAfterPoint);
   numFormatted = `${sign}${numFormatted}`;
   if (fixedLength == -1) {
@@ -23,6 +24,8 @@ function numToStr(num, digitsAfterPoint = 2, fixedLength = -1, dotPosition = 6) 
     for (let i = 0; i < toAdd; i++) numFormatted += ' ';
     while (numFormatted.length < fixedLength) numFormatted = ` ${numFormatted}`;
   }
+  if (forceFixed && numFormatted.length > fixedLength)
+    return numFormatted.substring(0, fixedLength - 1) + '…';
   return numFormatted;
 }
 

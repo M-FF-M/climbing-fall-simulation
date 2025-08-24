@@ -195,7 +195,7 @@ class WorldGraphics {
       }
     }
     
-    const timeString = `${(this.xyProjectionMode ? 'side view' : 'frontal view')} at time ${numToStr(this.currentTime, 2, 5, 2)} s`;
+    const timeString = `${(this.xyProjectionMode ? 'side view' : 'frontal view')} at time ${numToStr(this.currentTime, 2, 5, 2, true)} s`;
     ctx.font = `${can.pxToCanPx}em ${getComputedStyle(this.can.canvas).fontFamily}`;
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'right';
@@ -208,5 +208,12 @@ class WorldGraphics {
     ctx.fillText(timeString, this.width - padding, padding);
 
     can.drawGrid('m', false, this.scale, this.xOrigin, this.yOrigin);
+  }
+
+  /**
+   * Destroy the zoomable canvas (remove canvas from parent)
+   */
+  destroy() {
+    this.can.destroy();
   }
 }
