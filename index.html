@@ -20,6 +20,7 @@
   <script src="resources/graphics.js"></script>
   <script src="resources/graphs.js"></script>
   <script src="resources/setup-mask.js"></script>
+  <script src="resources/storage-manager.js"></script>
   <script src="resources/layout.js"></script>
   <script src="main.js"></script>
 </head>
@@ -38,8 +39,16 @@
             <tr class="additional-input-info">
               <td colspan="2">
                 <span class="info-icon material-symbols-outlined">info</span>
-                Saving and loading of simulation results or simulation configurations is currently <b>not yet supported</b>.
-                However, this feature will be added in the near future.
+                Saving of simulation results or simulation configurations is currently <b>not yet supported</b>.
+                However, automatically saved simulation results can be loaded here.
+              </td>
+            </tr>
+          </table>
+
+          <table class="step-form-table highlighted-table" id="load-auto-saved-results">
+            <tr>
+              <td colspan="2" class="fullwidth-text">
+                Automatically saved simulation results
               </td>
             </tr>
           </table>
@@ -303,6 +312,10 @@
         </form>
       </div>
     </div>
+
+  </div>
+
+  <div id="simulation-menu">
 
   </div>
 

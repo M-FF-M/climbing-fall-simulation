@@ -3,13 +3,22 @@
  * Convert a number to a formatted string, including a physical unit
  * @param {number} num the number to convert
  * @param {string} [unit] the unit, e.g. m, kg. Pass the empty string for no unit.
- * @param {number} [digitsAfterPoint=2] the number of digits after the decimal point
+ * @param {number} [digitsAfterPoint=3] the number of digits after the decimal point
  * @param {number} [fixedLength=-1] the desired length of the string in characters (use -1 for variable length depending on the number)
- * @param {number} [dotPosition=6] how many characters should follow after the decimal point, only used if fixedLength > 0; useful for aligning numbers
+ * @param {number} [dotPosition=7] how many characters should follow after the decimal point, only used if fixedLength > 0; useful for aligning numbers
  * @return {string} the formatted number
  */
 function numToUnitStr(num, unit = '', digitsAfterPoint = 3, fixedLength = -1, dotPosition = 7) {
   if (unit === '') return numToStr(num, digitsAfterPoint, fixedLength, dotPosition);
+  if (unit === 'Byte' || unit === 'byte') {
+    if (num >= 1) {
+      if (num < 1000) return `${numToStr(num, digitsAfterPoint, fixedLength, dotPosition)} ${unit}`;
+      if (num / 1024 < 1000) return `${numToStr(num / 1024, digitsAfterPoint, fixedLength, dotPosition)} KB`;
+      if (num / (1024 * 1024) < 1000) return `${numToStr(num / (1024 * 1024), digitsAfterPoint, fixedLength, dotPosition)} MB`;
+      if (num / (1024 * 1024 * 1024) < 1000) return `${numToStr(num / (1024 * 1024 * 1024), digitsAfterPoint, fixedLength, dotPosition)} GB`;
+      if (num / (1024 * 1024 * 1024 * 1024) < 1000) return `${numToStr(num / (1024 * 1024 * 1024 * 1024), digitsAfterPoint, fixedLength, dotPosition)} TB`;
+    }
+  }
   let iskunit = false;
   if (unit.length >= 2 && (unit.substring(0, 2) == 'kg' || unit.substring(0, 2) == 'km')) {
     num *= 1000;

@@ -4,9 +4,9 @@
  */
 class FallSimulationLayout {
   /**
-   * Create a new page layout for the fall simulation, and start the calculation.
-   * The simulation must have been properly initialized first in the GLOBALS object.
-   * In particular, GLOBALS.rope, GLOBALS.bodies, and GLOBALS.maxStep must be set properly.
+   * Create a new page layout for the fall simulation and the setup of the simulation.
+   * Attention: this object should only be created once, and it does expect the setup UI to be present directly within the HTML body already, under the id #setup-mask,
+   * as well as the menu UI to be present under the id #simulation-menu.
    */
   constructor() {
     /** @type {HTMLDivElement} overall layout container */
@@ -56,6 +56,12 @@ class FallSimulationLayout {
     if (this.setupMask === null)
       throw new Error('FallSimulationLayout expects a node with id setup-mask to be present directly in the HTML body!');
     document.body.removeChild(this.setupMask);
+
+    /** @type {HTMLDivElement} the div element containing the UI for the simulation menu (which can be accessed when viewing simulation results) */
+    this.simulationMenu = document.getElementById('simulation-menu');
+    if (this.simulationMenu === null)
+      throw new Error('FallSimulationLayout expects a node with id simulation-menu to be present directly in the HTML body!');
+    document.body.removeChild(this.simulationMenu);
 
     /** @type {boolean} whether the resizer is currently dragged by the user */
     this.resizerIsDragged = false;
@@ -226,6 +232,52 @@ class FallSimulationLayout {
       version: GLOBALS.version,
       versionDate: GLOBALS.versionDate
     };
+    const updatePhysicsStepSizeHint = () => {
+      if (document.getElementById('physics-step-size-info') !== null) {
+        const ropeSegments = GLOBALS.ropeSegmentNum;
+        const ropeMass = GLOBALS.rope.mass;
+        const segmentLength = GLOBALS.rope.defaultSegmentLength;
+        const minSegmentLength = GLOBALS.rope.minSegmentLength;
+        const percentage = numToStr(100 * minSegmentLength / segmentLength) + ' %';
+        const segmentMass = ropeMass / ropeSegments;
+        const stepSize = GLOBALS.maxStep;
+        const segAccPerStep = stepSize * 5000 / segmentMass; // assume max. force of 5 kN
+        const segMovementPerStep = stepSize * 200 / 3.6; // assume max. speed of 200 km/h
+        const infoString = `If you assume that the attained speeds of the objects in the simulation do not exceed 200 km/h, then one rope segment may move by at most ${
+          numToUnitStr(segMovementPerStep, 'm', 1)} during one simulation step of length ${
+          numToUnitStr(stepSize, 's', 1)}. If this value exceeds ${percentage} of the rope segment length, that is, ${
+          numToUnitStr(minSegmentLength, 'm', 1)}, instabilities in the simulation may occur. If the attained forces do not exceed 5 kN, then one rope segment's speed may increase by at most ${
+          numToUnitStr(segAccPerStep, 'm', 1)}/s during one simulation step. This value should also be of a reasonable size.`;
+        document.getElementById('physics-step-size-info').textContent = infoString;
+      }
+    };
+    const drawPreview = (idx) => {
+      return (evt) => {
+        if (idx !== this.currentSetupStep) return;
+        if (evt.target && (evt.target.getAttribute('id') === 'draw-number' || evt.target.getAttribute('id') === 'last-draw-height' || evt.target.getAttribute('id') === 'climber-sideways')) {
+          const drawSetupStep = this.stepFormTypes.indexOf('draw-setup');
+          if (drawSetupStep != -1 && drawSetupStep > this.currentSetupStep) {
+            const table = this.stepForms[drawSetupStep].getElementsByClassName('step-form-table')[0];
+            const firstChild = table.getElementsByTagName('tr')[0];
+            table.replaceChildren(firstChild);
+          }
+        }
+        const currentSettings = this.setupMaskSettings;
+        const allSettings = fillWithRemainingSteps(this.currentSetupStep, currentSettings, this.setupMaskDefaultSettings);
+        this.setupMaskSettings = allSettings;
+        this.prepareAndStartSimulation(false);
+        this.setupMaskSettings = currentSettings;
+        const bodyArr = [];
+        for (const body of GLOBALS.bodies) {
+          bodyArr.push(body.captureSnapshot());
+        }
+        for (const pm of this.previewManagers)
+          pm.drawSnapshot(bodyArr, 0);
+        if (this.stepFormTypes[this.currentSetupStep] === 'physics-setup') {
+          updatePhysicsStepSizeHint();
+        }
+      };
+    };
     for (let i = 0; i < this.stepElements.length; i++) {
       const stepNumber = this.stepElements[i].getElementsByClassName('step-header-num')[0];
       stepNumber.textContent = `${i+1}.`;
@@ -317,6 +369,8 @@ class FallSimulationLayout {
                     table.appendChild(tr2);
                   }
                 }
+              } else if (this.stepFormTypes[this.currentSetupStep] === 'physics-setup') {
+                (drawPreview(this.currentSetupStep))({});
               }
               this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
             }
@@ -342,30 +396,6 @@ class FallSimulationLayout {
           }
         )(i));
       }
-      const drawPreview = (idx) => {
-        return (evt) => {
-          if (idx !== this.currentSetupStep) return;
-          if (evt.target && (evt.target.getAttribute('id') === 'draw-number' || evt.target.getAttribute('id') === 'last-draw-height' || evt.target.getAttribute('id') === 'climber-sideways')) {
-            const drawSetupStep = this.stepFormTypes.indexOf('draw-setup');
-            if (drawSetupStep != -1) {
-              const table = this.stepForms[drawSetupStep].getElementsByClassName('step-form-table')[0];
-              const firstChild = table.getElementsByTagName('tr')[0];
-              table.replaceChildren(firstChild);
-            }
-          }
-          const currentSettings = this.setupMaskSettings;
-          const allSettings = fillWithRemainingSteps(this.currentSetupStep,currentSettings, this.setupMaskDefaultSettings);
-          this.setupMaskSettings = allSettings;
-          this.prepareAndStartSimulation(false);
-          this.setupMaskSettings = currentSettings;
-          const bodyArr = [];
-          for (const body of GLOBALS.bodies) {
-            bodyArr.push(body.captureSnapshot());
-          }
-          for (const pm of this.previewManagers)
-            pm.drawSnapshot(bodyArr, 0);
-        };
-      };
       form.addEventListener('input', drawPreview(i));
       form.addEventListener('reset', evt => setTimeout(() => (drawPreview(i))(evt), 0));
       (drawPreview(0))({});
@@ -374,6 +404,52 @@ class FallSimulationLayout {
       this.stepElements[i].getElementsByClassName('step-done')[0].style.opacity = '0';
       if (i > 0)
         this.stepElements[i].getElementsByClassName('step-body')[0].style.display = 'none';
+
+      if (this.stepFormTypes[i] === 'saved-configs') {
+        const table = document.getElementById('load-auto-saved-results');
+        const firstChild = table.getElementsByTagName('tr')[0];
+        table.replaceChildren(firstChild);
+        table.style.marginBottom = '1em';
+        const autoSavedResults = SimulationStorageManager.autoSavedResults;
+        if (autoSavedResults.length === 0) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.setAttribute('colspan', '2');
+          td.classList.add('fullwidth-text');
+          td.textContent = 'No automatically saved simulation results are available.';
+          tr.appendChild(td);
+          table.appendChild(tr);
+        } else {
+          for (const res of autoSavedResults) {
+            const tr = document.createElement('tr');
+            const leftTd = document.createElement('td');
+            const rightTd = document.createElement('td');
+            leftTd.textContent = `Saved on ${(new Date(res.date)).toLocaleString(undefined, {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit"
+            })} (${numToUnitStr(JSON.stringify(res).length, 'Byte', 1)})`;
+            const loadButton = document.createElement('button');
+            loadButton.textContent = 'Load';
+            loadButton.addEventListener('click', ((config, res) => {
+              return (evt) => {
+                this.setupMaskSettings = config;
+                this.setupSimulationRunningLayout();
+                this.simulationDuration = this.setupMaskSettings['simulation-duration'];
+                this.simResAutoSaved = true;
+                this.progressInfoText.textContent = `Simulation completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
+                this.setupSimulationResultLoop(res, config['frame-rate']);
+              };
+            })(res.configuration, res.result))
+            rightTd.appendChild(loadButton);
+            tr.appendChild(leftTd);
+            tr.appendChild(rightTd);
+            table.appendChild(tr);
+          }
+        }
+      }
     }
   }
 
@@ -570,6 +646,21 @@ class FallSimulationLayout {
     this.rightSubpanels[0].appendChild(this.selectPlaybackSpeed);
     this.rightSubpanels[0].appendChild(this.nextFrameBtn);
 
+    this.saveAsBtn = document.createElement('button');
+    this.saveAsBtn.classList.add('material-symbols-outlined');
+    this.saveAsBtn.classList.add('icon-button');
+    this.saveAsBtn.textContent = 'save_as';
+    // TODO: save as menu
+    this.settingsBtn = document.createElement('button');
+    this.settingsBtn.classList.add('material-symbols-outlined');
+    this.settingsBtn.classList.add('icon-button');
+    this.settingsBtn.textContent = 'settings';
+    // TODO: settings menu
+    const space = document.createElement('span'); space.style.display = 'inline-block'; space.style.width = '0.5em';
+    this.rightSubpanels[0].appendChild(space);
+    this.rightSubpanels[0].appendChild(this.saveAsBtn);
+    this.rightSubpanels[0].appendChild(this.settingsBtn);
+
     const graphTypes = ['forces', 'energy', 'positions']; // + 'speed'
     for (let i = 1; i < this.rightSubpanels.length; i++) {
       this.graphCanvases.push(
@@ -622,13 +713,14 @@ class FallSimulationLayout {
         addSnapshot(i * GLOBALS.maxStep);
         lastSnapshot = i * GLOBALS.maxStep;
       }
+      this.simulationDuration = i * GLOBALS.maxStep;
       if ((new Date()).getTime() - lastTime > 500) {
         if (this.progressBar !== null)
           this.progressBar.style.width = `${i / numSteps * 100}%`;
         if (this.progressBarText !== null)
           this.progressBarText.textContent = `${numToStr(i / numSteps * 100, 2, 5)} %`;
         if (this.progressInfoText !== null)
-          this.progressInfoText.textContent = `Progress: ${numToStr(i / numSteps * 100, 2, 5)} %, currently at time ${numToStr(i * GLOBALS.maxStep, 2, 11)} s`;
+          this.progressInfoText.textContent = `Progress: ${numToStr(i / numSteps * 100, 2, 5)} %, currently at time ${numToStr(this.simulationDuration, 2, 11)} s`;
         if (!GLOBALS.interruptSimulation) {
           window.setTimeout(() => this.precalculatePositions(targetTime, FPS, snapshots, i, lastSnapshot), 10);
           return;
@@ -637,11 +729,21 @@ class FallSimulationLayout {
           break;
         }
       }
-      this.simulationDuration = i * GLOBALS.maxStep;
     }
+    this.setupMaskSettings['simulation-duration'] = this.simulationDuration;
+    /** @type {boolean} whether the simulation result was saved automatically */
+    this.simResAutoSaved = SimulationStorageManager.autoSaveResult(this.setupMaskSettings, snapshots);
     
-    this.progressInfoText.textContent = `Simulation ${i-1 == numSteps ? '' : '(partially) '}completed, up to time ${numToStr((i-1) * GLOBALS.maxStep, 2, 11)} s`;
-    
+    this.progressInfoText.textContent = `Simulation ${i-1 == numSteps ? '' : '(partially) '}completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
+    this.setupSimulationResultLoop(snapshots, FPS);
+  }
+
+  /**
+   * Start the loop playing the simulation results
+   * @param {{time: number, bodies: ObjectSnapshot[]}[]} snapshots array with the captured snapshots
+   * @param {number} FPS the frame rate of the snapshots
+   */
+  setupSimulationResultLoop(snapshots, FPS) {
     this.snapshots = snapshots;
     this.snapshotFPS = FPS;
     this.setupSimulationResultLayout();
