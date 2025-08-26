@@ -12,10 +12,8 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 ## To-Do List
 
-- add menu for choosing which pane displays what and additional settings (menu markup should go directly into index.html, this is already prepared)
+- complete menu with additional settings
 - add legends for the different types of force and energy graphs per object
-- ensure that color dot and text in legend are not separated by line break
-- add a speed graph
 - add additional setup options such as elasticity constant
 - add the option to store simulation results in-browser and to download and upload them
 - decrease the axis legend text size if it covers too much of the available space

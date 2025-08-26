@@ -96,6 +96,7 @@ class GraphCanvas {
       this.graphs[idx].coordinates[lIdx].push([x, y]);
     };
     let legendcreated = false;
+    const createdLegends = {};
     for (const snapshot of this.snapshots) {
       this.minX = Math.min(this.minX, snapshot.time);
       this.maxX = Math.max(this.maxX, snapshot.time);
@@ -124,21 +125,26 @@ class GraphCanvas {
         }
         if (!legendcreated && j > 0) {
           const color = (typeof bodySnapshot.visibleState.color !== 'undefined') ? bodySnapshot.visibleState.color.toString() : 'black';
-          const legendSpan = document.createElement('span');
-          const colorBox = document.createElement('span');
-          colorBox.style.display = 'inline-block';
-          colorBox.style.width = '0.8em';
-          colorBox.style.height = '0.8em';
-          colorBox.style.borderRadius = '0.4em';
-          colorBox.style.marginRight = '0.4em';
-          colorBox.style.backgroundColor = color;
-          const nameSpan = document.createElement('span');
-          nameSpan.textContent = bodySnapshot.name;
-          legendSpan.appendChild(colorBox);
-          legendSpan.appendChild(nameSpan);
-          legendSpan.style.marginLeft = '0.3em';
-          legendSpan.style.marginRight = '0.3em';
-          this.legendContainer.appendChild(legendSpan);
+          if (!(color in createdLegends) || createdLegends[color].indexOf(bodySnapshot.name) == -1) {
+            const legendSpan = document.createElement('span');
+            const colorBox = document.createElement('span');
+            colorBox.style.display = 'inline-block';
+            colorBox.style.width = '0.8em';
+            colorBox.style.height = '0.8em';
+            colorBox.style.borderRadius = '0.4em';
+            colorBox.style.marginRight = '0.4em';
+            colorBox.style.backgroundColor = color;
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = bodySnapshot.name;
+            legendSpan.appendChild(colorBox);
+            legendSpan.appendChild(nameSpan);
+            legendSpan.style.marginLeft = '0.3em';
+            legendSpan.style.marginRight = '0.3em';
+            legendSpan.style.whiteSpace = 'nowrap';
+            this.legendContainer.appendChild(legendSpan);
+            if (!(color in createdLegends)) createdLegends[color] = [];
+            createdLegends[color].push(bodySnapshot.name);
+          }
         }
       }
       legendcreated = true;
