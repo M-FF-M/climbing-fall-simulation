@@ -35,13 +35,19 @@
  */
 
 /**
+ * @typedef {Object} SpeedSnapshot snapshot of the current speed of a body
+ * @property {number} current the current speed (in m/s) of a given body
+ */
+
+/**
  * @typedef {Object} ObjectSnapshot snapshot of the state of a body at a given time
  * @property {'point mass'|'rope'} type the type of the body, can be used e.g. to draw the body appropriately
  * @property {string} id a unique string identifying this body
  * @property {string} name a name for this body, interpretable by a human
- * @property {ForceSnapshot} forces the current forces applied to the body
  * @property {StateSnapshot} visibleState the current visible state of the body (excludes e.g. speed or acceleration)
- * @property {EnergySnapshot} energy the current energy stored in the body
+ * @property {ForceSnapshot} [forces] the current forces applied to the body
+ * @property {EnergySnapshot} [energy] the current energy stored in the body
+ * @property {SpeedSnapshot} [speed] the current speed of the body
  * @property {MaximaSnapshot} [runningMaxima] some running maxima statistics (e.g. running maximal speed, etc.)
  */
 
@@ -436,6 +442,8 @@ class RopeSegment {
     this.bodyA.applyGravity(f);
     if (this.followingSegment === null)
       this.bodyB.applyGravity(f);
+    for (const dPt of this.deflectionPoints)
+      dPt.applyGravity(f);
   }
 
   /**
@@ -495,6 +503,18 @@ class RopeSegment {
       endDiff = diff;
       endDiffLen = diffLen;
       endTension = tension;
+    }
+
+    // apply rope forces to deflection points
+    for (let i = 0; i < this.deflectionPoints.length; i++) {
+      const diffA = this.tmpDiffArr[i];
+      const diffB = this.tmpDiffArr[i + 1];
+      if (diffA.normsq() > 0 && diffB.normsq() > 0) {
+        const tensionA = this.tmpTensionArr[i];
+        const tensionB = this.tmpTensionArr[i + 1];
+        // force on deflection point is vector sum of tensions in neighboring intervals
+        this.deflectionPoints[i].applyForce(diffA.normalize().times(-tensionA).plus(diffB.normalize().times(tensionB)));
+      }
     }
 
     if (len == 0) throw new Error(`zero actual length of entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
@@ -584,6 +604,9 @@ class RopeSegment {
     this.bodyA.timeStep(delta, clearForces); // execute end body (bodies) timeStep functions
     if (this.followingSegment === null)
       this.bodyB.timeStep(delta, clearForces);
+
+    for (const dPt of this.deflectionPoints)
+      dPt.timeStep(delta, clearForces);
   }
 
   /**
@@ -905,6 +928,9 @@ class Body {
         kinetic: kin,
         potential: pot,
         overall: kin + pot
+      },
+      speed: {
+        current: this.velocity.norm()
       }
     };
   }

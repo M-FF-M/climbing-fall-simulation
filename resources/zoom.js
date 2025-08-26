@@ -80,6 +80,33 @@ class ZoomableCanvas {
     this.pxToCanPx = 1;
     /** @type {number} the tolerance in deviations in CSS pixels for the canvas size from its desired size (in order to get lines which are precisely aligned with screen pixels, see device pixel ratio) */
     this.sizeTolerance = 4;
+    /** @type {boolean} whether an overlay should be displayed on top of the canvas */
+    this.overlayVisible = false;
+    /** @type {HTMLDivElement} the overlay container */
+    this.overlayContainer = document.createElement('div');
+    this.overlayContainer.style.display = 'none';
+    this.overlayContainer.style.position = 'absolute';
+    this.overlayContainer.style.zIndex = '2';
+    this.overlayContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+    this.overlayContainer.style.alignItems = 'center';
+    this.overlayContainer.style.justifyContent = 'center';
+    document.body.appendChild(this.overlayContainer);
+  }
+
+  /**
+   * Show an overlay over the canvas
+   * @param {HTMLElement} content the node that should be shown within the overlay
+   */
+  showOverlay(content) {
+    this.overlayContainer.replaceChildren(content);
+    this.overlayContainer.style.display = 'flex';
+  }
+
+  /**
+   * Hide the overlay over the canvas
+   */
+  hideOverlay() {
+    this.overlayContainer.style.display = 'none';
   }
 
   /**
@@ -257,6 +284,9 @@ class ZoomableCanvas {
    */
   adaptSize(width, height) {
     const dpr = window.devicePixelRatio || 1;
+    const rect = this.boundingElement.getBoundingClientRect();
+    this.overlayContainer.style.left = `${rect.left}px`;
+    this.overlayContainer.style.top = `${rect.top}px`;
     if (Math.abs(dpr - this.pxToCanPx) > 1e-4 || Math.abs(this.width - width * dpr) > 0.4 || Math.abs(this.height - height * dpr) > 0.4) {
       this.pxToCanPx = dpr;
 
@@ -273,9 +303,11 @@ class ZoomableCanvas {
               if (type == 'width') {
                 this.canvas.width = actS;
                 this.canvas.style.width = `${desiredCssS}px`;
+                this.overlayContainer.style.width = `${desiredCssS}px`;
               } else {
                 this.canvas.height = actS;
                 this.canvas.style.height = `${desiredCssS}px`;
+                this.overlayContainer.style.height = `${desiredCssS}px`;
               }
               done = true;
               break;
@@ -285,9 +317,11 @@ class ZoomableCanvas {
                 if (type == 'width') {
                   this.canvas.width = actS;
                   this.canvas.style.width = `${Math.round(actCssS)}px`;
+                  this.overlayContainer.style.width = `${Math.round(actCssS)}px`;
                 } else {
                   this.canvas.height = actS;
                   this.canvas.style.height = `${Math.round(actCssS)}px`;
+                  this.overlayContainer.style.height = `${Math.round(actCssS)}px`;
                 }
                 done = true;
                 break;
@@ -300,9 +334,11 @@ class ZoomableCanvas {
           if (type == 'width') {
             this.canvas.width = desiredS;
             this.canvas.style.width = `${desiredS / this.pxToCanPx}px`;
+            this.overlayContainer.style.width = `${desiredS / this.pxToCanPx}px`;
           } else {
             this.canvas.height = desiredS;
             this.canvas.style.height = `${desiredS / this.pxToCanPx}px`;
+            this.overlayContainer.style.height = `${desiredS / this.pxToCanPx}px`;
           }
         }
       };
@@ -641,6 +677,7 @@ class ZoomableCanvas {
    */
   destroy() {
     this.boundingElement.removeChild(this.canvas);
+    document.body.removeChild(this.overlayContainer);
     this.resizeObserver.disconnect();
   }
 }

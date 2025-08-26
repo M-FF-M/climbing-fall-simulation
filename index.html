@@ -21,6 +21,7 @@
   <script src="resources/graphs.js"></script>
   <script src="resources/setup-mask.js"></script>
   <script src="resources/storage-manager.js"></script>
+  <script src="resources/menu-helper.js"></script>
   <script src="resources/layout.js"></script>
   <script src="main.js"></script>
 </head>
@@ -316,7 +317,11 @@
   </div>
 
   <div id="simulation-menu">
+    <div class="menu-container">
+      <div class="menu-header"><span>Menu</span><button id="close-menu" class="icon-button material-symbols-outlined">close</button></div>
 
+      <div class="menu-section"><button id="change-views">Change displayed graphs / views</button></div>
+    </div>
   </div>
 
 </body>

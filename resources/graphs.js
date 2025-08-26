@@ -17,6 +17,12 @@ const GRAPH_PROPERTIES = {
     subProperties: ['kinetic', 'potential', 'elastic', 'overall'],
     unit: 'J',
     legend: 'Energy:'
+  },
+  'speed' : {
+    property: 'speed',
+    subProperties: ['current'],
+    unit: 'm/s',
+    legend: 'Speeds:'
   }
 };
 
@@ -28,7 +34,7 @@ class GraphCanvas {
    * Create a new object responsible for drawing graphs
    * @param {HTMLElement} boundingElement an element into which the graphs should be drawn
    * @param {{time: number, bodies: ObjectSnapshot[]}[]} snapshots the object snapshots from which the graph should be generated
-   * @param {'forces'|'positions'|'energy'} [type] the type of graph to draw
+   * @param {'forces'|'positions'|'energy'|'speed'} [type] the type of graph to draw
    */
   constructor(boundingElement, snapshots, type = 'forces') {
     boundingElement.replaceChildren();
@@ -73,7 +79,7 @@ class GraphCanvas {
     this.maxY = -Infinity;
     /** @type {{color: Color, lines: string[], coordinates: [number, number][][]}[]} the graphs to plot */
     this.graphs = [];
-    /** @type {'forces'|'positions'|'energy'} the type of the displayed graph */
+    /** @type {'forces'|'positions'|'energy'|'speed'} the type of the displayed graph */
     this.graphType = type;
     const checkGraphInitialized = (idx, visibleState, prop) => {
       while (idx >= this.graphs.length)
@@ -99,12 +105,13 @@ class GraphCanvas {
         if (typeof bodySnapshot[ GRAPH_PROPERTIES[type].property ] === 'object') {
           for (const subProp of GRAPH_PROPERTIES[type].subProperties) {
             if (typeof bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp] === 'number') {
+              const factor = (GRAPH_PROPERTIES[type].unit === 'm/s') ? 3600 : 1;
               this.minY = Math.min(this.minY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp]);
-              this.maxY = Math.max(this.maxY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp]);
+              this.maxY = Math.max(this.maxY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp] * factor);
               const timeShift = (type === 'forces' && subProp === 'average' && typeof bodySnapshot.forces.averageWindow === 'number')
                 ? bodySnapshot.forces.averageWindow / 2 : 0;
               checkGraphInitialized(i, bodySnapshot.visibleState, subProp);
-              addPlotCoordinatePair(i, subProp, snapshot.time - timeShift, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp]);
+              addPlotCoordinatePair(i, subProp, snapshot.time - timeShift, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp] * factor);
               j++;
             } else if (Array.isArray(bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp])) {
               this.minY = Math.min(this.minY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp][1]); // we only plot the height (y-coordinate, index = 1)
@@ -155,20 +162,21 @@ class GraphCanvas {
     can.clear();
     const ctx = can.ctx;
     ctx.lineJoin = 'round';
+    const yUnit = (GRAPH_PROPERTIES[this.graphType].unit === 'm/s') ? 'm/h' : GRAPH_PROPERTIES[this.graphType].unit;
     if (this.scaleX == 0 || this.scaleY == 0 || can.inDefaultState) {
       if (this.width == 0 || this.height == 0) return;
       this.scaleX = this.width / (this.maxX - this.minX);
       this.scaleY = this.height / (this.maxY - this.minY);
       this.xOrigin = - this.minX * this.scaleX;
       this.yOrigin = - this.minY * this.scaleY;
-      const [xL, yL] = can.drawGrid(['s', GRAPH_PROPERTIES[this.graphType].unit], 'measure', [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
+      const [xL, yL] = can.drawGrid(['s', yUnit], 'measure', [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
       this.scaleX = (this.width - xL - 2) / (this.maxX - this.minX);
       this.scaleY = (this.height - yL - 2) / (this.maxY - this.minY);
       this.xOrigin = - this.minX * this.scaleX + xL;
       this.yOrigin = - this.minY * this.scaleY + yL;
     }
 
-    can.drawGrid(['s', GRAPH_PROPERTIES[this.graphType].unit], true, [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
+    can.drawGrid(['s', yUnit], true, [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
 
     // draw time marker
     ctx.strokeStyle = 'black';
@@ -206,7 +214,7 @@ class GraphCanvas {
     }
     ctx.setLineDash([]);
 
-    can.drawGrid(['s', GRAPH_PROPERTIES[this.graphType].unit], false, [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
+    can.drawGrid(['s', yUnit], false, [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
   }
 
   /**

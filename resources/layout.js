@@ -61,7 +61,7 @@ class FallSimulationLayout {
     this.simulationMenu = document.getElementById('simulation-menu');
     if (this.simulationMenu === null)
       throw new Error('FallSimulationLayout expects a node with id simulation-menu to be present directly in the HTML body!');
-    document.body.removeChild(this.simulationMenu);
+    this.simulationMenu.style.display = 'none';
 
     /** @type {boolean} whether the resizer is currently dragged by the user */
     this.resizerIsDragged = false;
@@ -378,23 +378,25 @@ class FallSimulationLayout {
         }
       )(i));
       if (form.getElementsByClassName('back-button').length > 0) {
-        form.getElementsByClassName('back-button')[0].addEventListener('click', (
-          (idx) => {
-            return (evt) => {
-              if (idx !== this.currentSetupStep) {
-                evt.preventDefault();
-                return;
-              }
-              if (this.currentSetupStep === 0) return;
-              deleteSetupMaskStepSettings(this.currentSetupStep, this.setupMaskSettings);
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
-              this.currentSetupStep--;
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = 'black';
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '0';
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
-            };
-          }
-        )(i));
+        for (const btn of form.getElementsByClassName('back-button')) {
+          btn.addEventListener('click', (
+            (idx) => {
+              return (evt) => {
+                if (idx !== this.currentSetupStep) {
+                  evt.preventDefault();
+                  return;
+                }
+                if (this.currentSetupStep === 0) return;
+                deleteSetupMaskStepSettings(this.currentSetupStep, this.setupMaskSettings);
+                this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
+                this.currentSetupStep--;
+                this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = 'black';
+                this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '0';
+                this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
+              };
+            }
+          )(i));
+        }
       }
       form.addEventListener('input', drawPreview(i));
       form.addEventListener('reset', evt => setTimeout(() => (drawPreview(i))(evt), 0));
@@ -640,11 +642,12 @@ class FallSimulationLayout {
       else if (this.selectPlaybackSpeed.value === '1/4') this.currentAnimationSpeed = 0.25;
       else if (this.selectPlaybackSpeed.value === '1/8') this.currentAnimationSpeed = 0.125;
     });
-    this.rightSubpanels[0].replaceChildren();
-    this.rightSubpanels[0].appendChild(this.previousFrameBtn);
-    this.rightSubpanels[0].appendChild(this.playPauseBtn);
-    this.rightSubpanels[0].appendChild(this.selectPlaybackSpeed);
-    this.rightSubpanels[0].appendChild(this.nextFrameBtn);
+    this.playbackControls = document.createElement('span');
+    this.playbackControls.classList.add('playback-controls');
+    this.playbackControls.appendChild(this.previousFrameBtn);
+    this.playbackControls.appendChild(this.playPauseBtn);
+    this.playbackControls.appendChild(this.selectPlaybackSpeed);
+    this.playbackControls.appendChild(this.nextFrameBtn);
 
     this.saveAsBtn = document.createElement('button');
     this.saveAsBtn.classList.add('material-symbols-outlined');
@@ -655,13 +658,20 @@ class FallSimulationLayout {
     this.settingsBtn.classList.add('material-symbols-outlined');
     this.settingsBtn.classList.add('icon-button');
     this.settingsBtn.textContent = 'settings';
-    // TODO: settings menu
+    this.settingsBtn.addEventListener('click', () => {
+      this.simulationMenu.style.display = 'block';
+    });
+    document.getElementById('close-menu').addEventListener('click', () => {
+      this.simulationMenu.style.display = 'none';
+    });
+    initializeMenu(this);
     const space = document.createElement('span'); space.style.display = 'inline-block'; space.style.width = '0.5em';
-    this.rightSubpanels[0].appendChild(space);
-    this.rightSubpanels[0].appendChild(this.saveAsBtn);
-    this.rightSubpanels[0].appendChild(this.settingsBtn);
+    this.playbackControls.appendChild(space);
+    this.playbackControls.appendChild(this.saveAsBtn);
+    this.playbackControls.appendChild(this.settingsBtn);
+    this.rightSubpanels[0].replaceChildren(this.playbackControls);
 
-    const graphTypes = ['forces', 'energy', 'positions']; // + 'speed'
+    const graphTypes = ['forces', 'energy', 'positions', 'speed'];
     for (let i = 1; i < this.rightSubpanels.length; i++) {
       this.graphCanvases.push(
         new GraphCanvas(this.rightSubpanels[i], this.snapshots, graphTypes[(i-1) % graphTypes.length])
