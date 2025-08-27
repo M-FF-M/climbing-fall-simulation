@@ -1,6 +1,6 @@
 
 const SETUP_MASK_STEPS = {
-  order: ['saved-configs', 'basic-setup', 'draw-setup', 'physics-setup', 'simulation-start'],
+  order: ['saved-configs', 'basic-setup', 'draw-setup', 'rope-setup', 'physics-setup', 'simulation-start'],
   'saved-configs': {
     inputs: []
   },
@@ -21,6 +21,14 @@ const SETUP_MASK_STEPS = {
   },
   'draw-setup': {
     inputs: []
+  },
+  'rope-setup': {
+    inputs: [
+      { type: 'float', id: 'elasticity-constant' },
+      { type: 'float', id: 'rope-weight' },
+      { type: 'float', id: 'rope-bend-damping' },
+      { type: 'float', id: 'rope-stretch-damping' }
+    ]
   },
   'physics-setup': {
     inputs: [

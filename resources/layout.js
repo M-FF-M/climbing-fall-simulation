@@ -217,7 +217,7 @@ class FallSimulationLayout {
     delete this.setupMaskDefaultSettings['versionDate'];
     changeSetupDefaults(this.setupMaskDefaultSettings);
 
-    document.getElementById('version-info').textContent = `(v${GLOBALS.version} of ${GLOBALS.versionDate})`;
+    document.getElementById('version-info').textContent = `(v${GLOBALS.version} from ${GLOBALS.versionDate})`;
 
     /** @type {HTMLDivElement[]} all the .setup-step elements in the setup workflow */
     this.stepElements = this.setupMask.getElementsByClassName('setup-step');
@@ -509,7 +509,12 @@ class FallSimulationLayout {
     GLOBALS.deflectionPoint = (this.setupMaskSettings['draw-number'] > 0) ? deflectionPoints[deflectionPoints.length - 1] : null;
     // GLOBALS.deflectionPoint.frictionCoefficient = 0;
 
-    GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber, ...deflectionPoints);
+    GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber, {
+      elasticityConstant: this.setupMaskSettings['elasticity-constant'] / 1000,
+      weightPerMeter: this.setupMaskSettings['rope-weight'],
+      bendDamping: this.setupMaskSettings['rope-bend-damping'],
+      stretchDamping: this.setupMaskSettings['rope-stretch-damping']
+    }, ...deflectionPoints);
     GLOBALS.rope.drawingColor = new Color(241, 160, 45);
     
     addWorldBarrier(new V(Math.cos(Math.PI * GLOBALS.wallAngle / 180), -Math.sin(Math.PI * GLOBALS.wallAngle / 180), 0), new V(-0.5, 0, 0), 'wall');

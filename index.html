@@ -238,6 +238,63 @@
       </div>
     </div>
 
+    <div class="setup-step" id="rope-setup">
+      <div class="step-header"><span class="step-header-num">1.</span> Rope properties <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+
+      <div class="step-body">
+        <form class="step-form">
+          <table class="step-form-table">
+            <tr>
+              <td><label for="elasticity-constant">Elasticity constant:</label></td>
+              <td><input type="number" id="elasticity-constant" min="0.001" max="10" value="0.079" step="0.001" /> &times;10<sup>-3</sup> per Newton</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                The elasticity constant measures the relative amount by which the rope stretches if a stretching force of 1 Newton is applied. That is,
+                if a rope has a rest length of 5 meters, the elasticity constant is 0.1&times;10<sup>-3</sup> per Newton, and a force of 2 Newton is applied,
+                then the rope will stretch by 5 &times; 0.1&times;10<sup>-3</sup> &times; 2 = 10<sup>-3</sup> meters.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="rope-weight">Rope weight:</label></td>
+              <td><input type="number" id="rope-weight" min="0.001" max="0.5" value="0.062" step="0.001" /> kilograms per meter</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                The weight of 1 meter of rope. This value will be multiplied with the rope length to obtain the rope weight.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="rope-bend-damping">Rope bend damping:</label></td>
+              <td><input type="number" id="rope-bend-damping" min="0" max="2" value="0.02" step="0.001" /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                How much to damp rope bends. The value has no direct physical meaning, but the higher the value, the stiffer the rope
+                is (the less oscillations orthogonal to the rope appear and the less the rope bends at rope segment joins).
+              </td>
+            </tr>
+            <tr>
+              <td><label for="rope-stretch-damping">Rope stretch damping:</label></td>
+              <td><input type="number" id="rope-stretch-damping" min="0" max="2" value="0.1" step="0.001" /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                How much to damp rope stretching. The value has no direct physical meaning, but the higher the value, the less &ldquo;springy&rdquo;
+                the rope is (rope length changes due to stretching are damped to a higher extent).
+              </td>
+            </tr>
+          </table>
+
+          <button class="back-button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+        </form>
+      </div>
+    </div>
+
     <div class="setup-step" id="physics-setup">
       <div class="step-header"><span class="step-header-num">1.</span> Physics engine settings <span class="inline-icon material-symbols-outlined step-done">check</span></div>
 
@@ -321,6 +378,10 @@
       <div class="menu-header"><span>Menu</span><button id="close-menu" class="icon-button material-symbols-outlined">close</button></div>
 
       <div class="menu-section"><button id="change-views">Change displayed graphs / views</button></div>
+
+      <div class="menu-section" id="menu-save"><span class="menu-section-header">Save simulation</span><br /><span id="saved-automatically"></span><br /><button id="save-on-disk">Save simulation result on disk</button></div>
+      
+      <div class="menu-section"><span class="menu-section-header">Climbing fall simulation</span><br /><span id="menu-version"></span><br />&copy; Fabian Michel<br />Published under the <a href="https://github.com/M-FF-M/climbing-fall-simulation/blob/master/LICENSE.md">MIT License</a></div>
     </div>
   </div>
 

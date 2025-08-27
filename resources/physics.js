@@ -75,21 +75,32 @@ class Rope {
    * @param {number} [segments=1] the number of rope segments to use for modelling the rope
    * @param {Body} [end1] the body attached to one end / the belayer's of the rope (default is a body in the origin which is fixed, i.e., which cannot move)
    * @param {Body} [end2] the body attached to the other end / the climber's end of the rope (default is a point mass of 70 kg, hanging straight below the other, fixed rope end (in y-direction))
+   * @param {{elasticityConstant?: number, weightPerMeter?: number, bendDamping?: number, stretchDamping?: number}} [settings] additional rope settings
    * @param {Body[]} [deflectionPoints] an arbitrary number of deflection points (carabiners) through which the rope should pass.
    *                                    The rope passes through the deflection points in the order in which they are given, starting from end1 of the rope.
    */
-  constructor(length = 5, segments = 1, end1 = new Body(0, 0, 0, 0, 'anchor'), end2 = new Body(0, -length, 0, 70, 'climber'), ...deflectionPoints) {
+  constructor(length = 5, segments = 1, end1 = new Body(0, 0, 0, 0, 'anchor'), end2 = new Body(0, -length, 0, 70, 'climber'), settings = {}, ...deflectionPoints) {
     /** @type {number} unique body id */
     this.id = PHYSICS_WORLD.idCounter;
     PHYSICS_WORLD.idCounter++;
+
+    const ropeElasticityConst = (settings.hasOwnProperty('elasticityConstant') && (typeof settings['elasticityConstant'] === 'number'))
+      ? settings['elasticityConstant'] : 0.079e-3; // 0.079e-3 1/N elasticity constant of typical climbing rope
+    const weightPerMeter = (settings.hasOwnProperty('weightPerMeter') && (typeof settings['weightPerMeter'] === 'number'))
+      ? settings['weightPerMeter'] : 0.062; // 62 g per meter of rope weight of typical climbing rope
+    const bendDamping = (settings.hasOwnProperty('bendDamping') && (typeof settings['bendDamping'] === 'number'))
+      ? settings['bendDamping'] : 0.02; // damping for oscillations orthogonal to the rope
+    const stretchDamping = (settings.hasOwnProperty('stretchDamping') && (typeof settings['stretchDamping'] === 'number'))
+      ? settings['stretchDamping'] : 0.1; // damping for internal friction
+
     /** @type {string} a name for the body */
     this.name = 'rope';
     /** @type {number} the length of the unstretched rope in meters */
     this.restLength = length;
     /** @type {number} the weight of the entire rope in kilograms */
-    this.mass = length * 0.062; // 62 g per meter of rope weight of typical climbing rope
+    this.mass = length * weightPerMeter;
     /** @type {number} the elasticity constant of the rope in 1/Newton */
-    this.elasticityConstant = 0.079e-3; // 0.079e-3 1/N elasticity constant of typical climbing rope
+    this.elasticityConstant = ropeElasticityConst;
     /** @type {number} the length of an unstretched standard rope segment in meters */
     this.segmentLength = length / segments;
     /** @type {number} required minimal rope segment length in meters */
@@ -99,9 +110,9 @@ class Rope {
     /** @type {number} default rope segment length in meters */
     this.defaultSegmentLength = this.segmentLength;
     /** @type {number} damping coefficient for oscillations orthogonal to the rope, no direct physical background */
-    this.dampingCoefficient = 0.02; // / this.segmentLength; // damping for oscillations orthogonal to the rope
+    this.dampingCoefficient = bendDamping; // damping for oscillations orthogonal to the rope
     /** @type {number} damping coefficient for internal friction, no direct physical background */
-    this.internalDamping = 0.1; // / this.segmentLength; // damping for internal friction
+    this.internalDamping = stretchDamping; // damping for internal friction
 
     const deflPts = [end1, ...deflectionPoints, end2];
     let cumLen = 0;

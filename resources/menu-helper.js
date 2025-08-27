@@ -76,4 +76,15 @@ function initializeMenu(layoutManager) {
       layoutManager.rightSubpanels[0].replaceChildren(layoutManager.playbackControls);
     });
   });
+
+  if (layoutManager.simResAutoSaved)
+    document.getElementById('saved-automatically').textContent = 'This simulation has been saved automatically. However, note that only three automatically saved simulation results are stored at any time.';
+  else
+    document.getElementById('saved-automatically').textContent = 'This simulation has not been saved automatically due to the large amount of generated data. You can save it manually.';
+
+  document.getElementById('save-on-disk').addEventListener('click', () => {
+    SimulationStorageManager.saveResultAsFile(layoutManager.setupMaskSettings, layoutManager.snapshots);
+  });
+
+  document.getElementById('menu-version').textContent = `v${GLOBALS.version} from ${GLOBALS.versionDate}`;
 }

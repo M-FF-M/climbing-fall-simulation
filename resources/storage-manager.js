@@ -45,6 +45,35 @@ class SimulationStorageManager {
       return false;
     }
   }
+
+  /**
+   * Save a simulation result as a file
+   * @param {object} configuration the simulation configuration object
+   * @param {{time: number, bodies: ObjectSnapshot[]}[]} result the simulation result
+   */
+  static saveResultAsFile(configuration, result) {
+    const saveObject = {
+      date: (new Date()).toISOString(),
+      configuration,
+      result
+    };
+    const saveString = JSON.stringify(saveObject);
+    const blob = new Blob([saveString], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const formatDate = (d) => {
+      const pad = n => String(n).padStart(2, '0'); // zero-pad to 2 digits
+      const year   = d.getFullYear();
+      const month  = pad(d.getMonth() + 1); // months are 0-based
+      const day    = pad(d.getDate());
+      const hour   = pad(d.getHours());
+      const minute = pad(d.getMinutes());
+      return `${year}_${month}_${day}-${hour}_${minute}`;
+    };
+    a.download = `climbing-fall-${formatDate(new Date())}.json`; // suggested filename
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 }
 
 /**

@@ -332,3 +332,13 @@ select.size-to-icon-button {
   font-size: 1.3em;
   font-weight: bold;
 }
+
+.menu-section:not(:last-child) {
+  margin-bottom: 1.5em;
+}
+
+.menu-section-header {
+  display: inline-block;
+  font-weight: bold;
+  margin-bottom: 0.5em;
+}
