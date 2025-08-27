@@ -296,29 +296,35 @@ class Rope {
   }
   
   /**
-   * The current kinetic energy of the entire rope (in Joule)
+   * The current kinetic energy of the entire rope (in Joule) without belayer or climber
    * @type {number}
    */
   get currentKineticEnergy() {
     let energy = 0;
-    for (let i = 0; i < this.bodies.length; i++)
+    for (let i = 0; i < this.bodies.length; i++) {
+      if ((i == 0 || i == this.bodies.length - 1) && this.bodies[i].mass >= 1.2 * this.ropeSegments[i == 0 ? i : i-1].mass)
+        continue; // ignore large masses at rope ends (they do not really belong to the rope)
       energy += this.bodies[i].currentKineticEnergy;
+    }
     return energy;
   }
 
   /**
-   * The current potential energy of the entire rope (in Joule); depends on the vector supplied to the applyGravity function
+   * The current potential energy of the rope (in Joule) without belayer or climber; depends on the vector supplied to the applyGravity function
    * @type {number}
    */
   get currentPotentialEnergy() {
     let energy = 0;
-    for (let i = 0; i < this.bodies.length; i++)
+    for (let i = 0; i < this.bodies.length; i++) {
+      if ((i == 0 || i == this.bodies.length - 1) && this.bodies[i].mass >= 1.2 * this.ropeSegments[i == 0 ? i : i-1].mass)
+        continue; // ignore large masses at rope ends (they do not really belong to the rope)
       energy += this.bodies[i].currentPotentialEnergy;
+    }
     return energy;
   }
 
   /**
-   * Capture information about the current state of the rope (note: the energy snapshot includes kinetic and potential energy of belayer and climber)
+   * Capture information about the current state of the rope (note: the energy snapshot does not include kinetic and potential energy of belayer and climber)
    * @return {ObjectSnapshot} a snapshot of the current state of the rope
    */
   captureSnapshot() {

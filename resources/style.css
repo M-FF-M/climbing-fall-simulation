@@ -237,9 +237,52 @@ select.size-to-icon-button {
   transform: translateY(0.23em);
 }
 
-.step-form-table .material-symbols-outlined.info-icon {
+.step-form-table .material-symbols-outlined.info-icon, .info-box .material-symbols-outlined.info-icon {
   font-size: 1em;
   transform: translateY(0.13em);
+}
+
+.info-box .info-icon {
+  margin-right: 0.2em;
+}
+
+.legend-box, .info-box {
+  display: inline-block;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-left: 0.3em;
+  margin-right: 0.3em;
+  margin-top: 0.5px;
+  margin-bottom: 0.5px;
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+  padding-top: 0.1em;
+  padding-bottom: 0.1em;
+  border-radius: 0.2em;
+  user-select: none;
+  background-color: #eee;
+  transition-property: background-color;
+  transition-duration: 500ms;
+}
+
+.legend-box {
+  padding-top: 0.2em;
+}
+
+.legend-color-dot {
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 0.4em;
+  margin-right: 0.4em;
+}
+
+.info-box {
+  background-color: #ddd;
+}
+
+.info-box:hover {
+  background-color: #bbb;
 }
 
 .additional-input-info {

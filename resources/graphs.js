@@ -50,6 +50,7 @@ class GraphCanvas {
     this.legendContainer.style.flex = '0 0 auto';
     this.legendContainer.style.padding = '0.5em';
     this.legendContainer.textContent = GRAPH_PROPERTIES[type].legend;
+    this.legendContainer.style.textAlign = 'center';
     boundingElement.appendChild(this.legendContainer);
     /** @type {ZoomableCanvas} the zoomable canvas onto which to draw */
     this.can = new ZoomableCanvas(this.canvasContainer, () => this.canvasChange())
@@ -81,6 +82,10 @@ class GraphCanvas {
     this.graphs = [];
     /** @type {'forces'|'positions'|'energy'|'speed'} the type of the displayed graph */
     this.graphType = type;
+    /** @type {boolean} whether to show what the different line types in the graph mean */
+    this.showLineTypeLegend = false;
+    /** @type {number} force averaging window in seconds */
+    this.forceAvgWindow = 0;
     const checkGraphInitialized = (idx, visibleState, prop) => {
       while (idx >= this.graphs.length)
         this.graphs.push({ lines: [], coordinates: [] });
@@ -100,6 +105,11 @@ class GraphCanvas {
     for (const snapshot of this.snapshots) {
       this.minX = Math.min(this.minX, snapshot.time);
       this.maxX = Math.max(this.maxX, snapshot.time);
+      const totalEnergy = {};
+      if (type === 'energy') {
+        for (const subProp of GRAPH_PROPERTIES[type].subProperties)
+          totalEnergy[subProp] = 0;
+      }
       for (let i = 0; i < snapshot.bodies.length; i++) {
         const bodySnapshot = snapshot.bodies[i];
         let j = 0;
@@ -111,8 +121,12 @@ class GraphCanvas {
               this.maxY = Math.max(this.maxY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp] * factor);
               const timeShift = (type === 'forces' && subProp === 'average' && typeof bodySnapshot.forces.averageWindow === 'number')
                 ? bodySnapshot.forces.averageWindow / 2 : 0;
+              if (type === 'forces' && subProp === 'average' && typeof bodySnapshot.forces.averageWindow === 'number')
+                this.forceAvgWindow = bodySnapshot.forces.averageWindow;
               checkGraphInitialized(i, bodySnapshot.visibleState, subProp);
               addPlotCoordinatePair(i, subProp, snapshot.time - timeShift, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp] * factor);
+              if (type === 'energy')
+                totalEnergy[subProp] += bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp];
               j++;
             } else if (Array.isArray(bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp])) {
               this.minY = Math.min(this.minY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp][1]); // we only plot the height (y-coordinate, index = 1)
@@ -127,27 +141,65 @@ class GraphCanvas {
           const color = (typeof bodySnapshot.visibleState.color !== 'undefined') ? bodySnapshot.visibleState.color.toString() : 'black';
           if (!(color in createdLegends) || createdLegends[color].indexOf(bodySnapshot.name) == -1) {
             const legendSpan = document.createElement('span');
+            legendSpan.classList.add('legend-box');
             const colorBox = document.createElement('span');
-            colorBox.style.display = 'inline-block';
-            colorBox.style.width = '0.8em';
-            colorBox.style.height = '0.8em';
-            colorBox.style.borderRadius = '0.4em';
-            colorBox.style.marginRight = '0.4em';
+            colorBox.classList.add('legend-color-dot');
             colorBox.style.backgroundColor = color;
             const nameSpan = document.createElement('span');
             nameSpan.textContent = bodySnapshot.name;
             legendSpan.appendChild(colorBox);
             legendSpan.appendChild(nameSpan);
-            legendSpan.style.marginLeft = '0.3em';
-            legendSpan.style.marginRight = '0.3em';
-            legendSpan.style.whiteSpace = 'nowrap';
             this.legendContainer.appendChild(legendSpan);
             if (!(color in createdLegends)) createdLegends[color] = [];
             createdLegends[color].push(bodySnapshot.name);
           }
         }
       }
+      if (type === 'energy') {
+        for (const subProp of GRAPH_PROPERTIES[type].subProperties) {
+          checkGraphInitialized(snapshot.bodies.length, { 'color': RAINBOW_COLORS[RAINBOW_COLORS.length - 1] }, subProp);
+          addPlotCoordinatePair(snapshot.bodies.length, subProp, snapshot.time, totalEnergy[subProp]);
+          this.maxY = Math.max(this.maxY, totalEnergy[subProp]);
+        }
+        if (!legendcreated) {
+          const legendSpan = document.createElement('span');
+          legendSpan.classList.add('legend-box');
+          const colorBox = document.createElement('span');
+          colorBox.classList.add('legend-color-dot');
+          colorBox.style.backgroundColor = RAINBOW_COLORS[RAINBOW_COLORS.length - 1].toString();
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = 'entire system';
+          legendSpan.appendChild(colorBox);
+          legendSpan.appendChild(nameSpan);
+          this.legendContainer.appendChild(legendSpan);
+        }
+      }
       legendcreated = true;
+    }
+    if (this.graphType === 'forces' || this.graphType === 'energy') {
+      const legendSpan = document.createElement('span');
+      legendSpan.classList.add('info-box');
+      legendSpan.setAttribute('title', 'Show a legend for the line types');
+      const iconBox = document.createElement('span');
+      iconBox.classList.add('material-symbols-outlined');
+      iconBox.classList.add('info-icon');
+      iconBox.textContent = 'info';
+      const textSpan = document.createElement('span');
+      textSpan.textContent = 'line types';
+      legendSpan.appendChild(iconBox);
+      legendSpan.appendChild(textSpan);
+      legendSpan.addEventListener('click', () => {
+        this.showLineTypeLegend = !this.showLineTypeLegend;
+        if (this.showLineTypeLegend) {
+          iconBox.textContent = 'close';
+          legendSpan.setAttribute('title', 'Hide legend for the line types');
+        } else {
+          iconBox.textContent = 'info';
+          legendSpan.setAttribute('title', 'Show a legend for the line types');
+        }
+        this.draw();
+      });
+      this.legendContainer.appendChild(legendSpan);
     }
   }
 
@@ -219,6 +271,61 @@ class GraphCanvas {
       }
     }
     ctx.setLineDash([]);
+
+    if (this.showLineTypeLegend && (this.graphType === 'energy' || this.graphType === 'forces')) {
+      const [xL, yL] = can.drawGrid(['s', yUnit], 'measure', [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
+      ctx.strokeStyle = 'black';
+      ctx.lineWidth = 2;
+      ctx.font = `${0.75 * can.pxToCanPx}em ${getComputedStyle(can.canvas).fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      const lineTypes = {
+        'energy' : [
+          ['total energy', []],
+          ['kinetic energy', [2, 2]],
+          ['potential energy', [6, 2]],
+          ['elastic energy', [4, 2]]
+        ],
+        'forces' : [
+          ['current force', []],
+          [`force averaged over ${numToUnitStr(this.forceAvgWindow, 's', 1)}`, [4, 2]]
+        ]
+      };
+      const legendMetrics = [];
+      const padding = ctx.measureText('o').width;
+      const legendLineWidths = 7 * padding;
+      let maxWidth = 0;
+      let totalHeight = padding;
+      for (const [legend, dash] of lineTypes[this.graphType]) {
+        const metrics = ctx.measureText(legend);
+        legendMetrics.push(metrics);
+        const textW = metrics.width;
+        const textH = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+        maxWidth = Math.max(maxWidth, textW + (dash === null ? 0 : legendLineWidths + padding));
+        totalHeight += textH + padding;
+      }
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.fillRect(xL, this.height - yL - totalHeight, maxWidth + 2*padding, totalHeight);
+      ctx.fillStyle = 'black';
+      let ycoordLow = this.height - yL - padding;
+      for (let i = lineTypes[this.graphType].length - 1; i >= 0; i--) {
+        const [legend, dash] = lineTypes[this.graphType][i];
+        const textH = legendMetrics[i].actualBoundingBoxAscent + legendMetrics[i].actualBoundingBoxDescent;
+        if (dash !== null) {
+          ctx.setLineDash(dash);
+          ctx.beginPath();
+          ctx.moveTo(Math.round(xL + padding), Math.round(ycoordLow - textH / 2));
+          ctx.lineTo(Math.round(xL + padding + legendLineWidths), Math.round(ycoordLow - textH / 2));
+          ctx.stroke();
+          ctx.closePath();
+          ctx.fillText(legend, xL + 2*padding + legendLineWidths, ycoordLow - legendMetrics[i].actualBoundingBoxDescent);
+        } else {
+          ctx.fillText(legend, xL + padding, ycoordLow - legendMetrics[i].actualBoundingBoxDescent);
+        }
+        ycoordLow -= textH + padding;
+      }
+      ctx.setLineDash([]);
+    }
 
     can.drawGrid(['s', yUnit], false, [this.scaleX, this.scaleY], this.xOrigin, this.yOrigin);
   }
