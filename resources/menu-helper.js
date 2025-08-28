@@ -79,11 +79,29 @@ function initializeMenu(layoutManager) {
 
   if (layoutManager.simResAutoSaved)
     document.getElementById('saved-automatically').textContent = 'This simulation has been saved automatically. However, note that only three automatically saved simulation results are stored at any time.';
-  else
-    document.getElementById('saved-automatically').textContent = 'This simulation has not been saved automatically due to the large amount of generated data. You can save it manually.';
+  else {
+    if (layoutManager.simResUserSaved === null || typeof layoutManager.simResUserSaved === 'undefined')
+      document.getElementById('saved-automatically').textContent = 'This simulation has not been saved automatically due to the large amount of generated data. You can save it manually.';
+    else
+      document.getElementById('saved-automatically').textContent = 'This simulation has not been saved automatically, but it has already been saved manually.';
+  }
 
   document.getElementById('save-on-disk').addEventListener('click', () => {
     SimulationStorageManager.saveResultAsFile(layoutManager.setupMaskSettings, layoutManager.snapshots);
+  });
+
+  if (layoutManager.simResUserSaved === null || typeof layoutManager.simResUserSaved === 'undefined')
+    document.getElementById('save-in-browser-hint').textContent = 'This simulation has not yet been saved manually.';
+  else
+    document.getElementById('save-in-browser-hint').textContent = `This simulation has been saved in the browser under the name ${layoutManager.simResUserSaved}.`;
+
+  document.getElementById('save-in-browser').addEventListener('click', () => {
+    if (document.getElementById('save-in-browser-name').value !== '') {
+      SimulationStorageManager.saveResultInBrowser(document.getElementById('save-in-browser-name').value, layoutManager.setupMaskSettings, layoutManager.snapshots);
+      document.getElementById('save-in-browser-hint').textContent = `This simulation has been saved in the browser under the name ${document.getElementById('save-in-browser-name').value}.`;
+    } else {
+      alert('Please enter a name for saving (so that you can later identify the simulation again).');
+    }
   });
 
   document.getElementById('menu-version').textContent = `v${GLOBALS.version} from ${GLOBALS.versionDate}`;

@@ -228,8 +228,20 @@ select.size-to-icon-button {
   text-align: left;
 }
 
-.step-form-table tr:not(.additional-input-info) td:first-child:not(.fullwidth-text) {
+.step-form-table:not(.rope-manufacturer-info) tr.rope-manufacturer-info {
+  display: none;
+}
+
+.step-form-table:first-of-type {
+  margin-top: 1em;
+}
+
+.step-form-table tr:not(.additional-input-info) td:first-child:not(.fullwidth-text):not(.centered) {
   text-align: right;
+}
+
+.step-form-table tr:not(.additional-input-info) td.centered {
+  text-align: center;
 }
 
 .material-symbols-outlined.inline-icon {

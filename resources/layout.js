@@ -232,7 +232,8 @@ class FallSimulationLayout {
       version: GLOBALS.version,
       versionDate: GLOBALS.versionDate
     };
-    const updatePhysicsStepSizeHint = () => {
+
+    const updatePhysicsStepSizeHint = () => { // update hint for step size of physics engine
       if (document.getElementById('physics-step-size-info') !== null) {
         const ropeSegments = GLOBALS.ropeSegmentNum;
         const ropeMass = GLOBALS.rope.mass;
@@ -242,8 +243,8 @@ class FallSimulationLayout {
         const segmentMass = ropeMass / ropeSegments;
         const stepSize = GLOBALS.maxStep;
         const segAccPerStep = stepSize * 5000 / segmentMass; // assume max. force of 5 kN
-        const segMovementPerStep = stepSize * 200 / 3.6; // assume max. speed of 200 km/h
-        const infoString = `If you assume that the attained speeds of the objects in the simulation do not exceed 200 km/h, then one rope segment may move by at most ${
+        const segMovementPerStep = stepSize * 50 / 3.6; // assume max. speed of 50 km/h
+        const infoString = `If you assume that the attained speeds of the objects in the simulation do not exceed 50 km/h, then one rope segment may move by at most ${
           numToUnitStr(segMovementPerStep, 'm', 1)} during one simulation step of length ${
           numToUnitStr(stepSize, 's', 1)}. If this value exceeds ${percentage} of the rope segment length, that is, ${
           numToUnitStr(minSegmentLength, 'm', 1)}, instabilities in the simulation may occur. If the attained forces do not exceed 5 kN, then one rope segment's speed may increase by at most ${
@@ -251,7 +252,8 @@ class FallSimulationLayout {
         document.getElementById('physics-step-size-info').textContent = infoString;
       }
     };
-    const drawPreview = (idx) => {
+
+    const drawPreview = (idx) => { // draw setup preview (and update physics step size hint)
       return (evt) => {
         if (idx !== this.currentSetupStep) return;
         if (evt.target && (evt.target.getAttribute('id') === 'draw-number' || evt.target.getAttribute('id') === 'last-draw-height' || evt.target.getAttribute('id') === 'climber-sideways')) {
@@ -278,11 +280,13 @@ class FallSimulationLayout {
         }
       };
     };
+
     for (let i = 0; i < this.stepElements.length; i++) {
       const stepNumber = this.stepElements[i].getElementsByClassName('step-header-num')[0];
       stepNumber.textContent = `${i+1}.`;
       const form = this.stepElements[i].getElementsByTagName('form')[0];
-      form.addEventListener('submit', (
+
+      form.addEventListener('submit', ( // go to next setup step
         (idx) => {
           return (evt) => {
             evt.preventDefault();
@@ -296,12 +300,13 @@ class FallSimulationLayout {
               this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '1';
               this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
               this.currentSetupStep++;
-              if (this.stepFormTypes[this.currentSetupStep] === 'draw-setup') {
+
+              if (this.stepFormTypes[this.currentSetupStep] === 'draw-setup') { // draw setup step
                 const numDraws = this.setupMaskSettings['draw-number'];
                 const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
-                const firstChild = table.getElementsByTagName('tr')[0];
-                table.replaceChildren(firstChild);
+                table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1], table.getElementsByTagName('tr')[2]);
                 table.style.marginBottom = '1em';
+
                 if (numDraws == 0) {
                   const tr = document.createElement('tr');
                   const td = document.createElement('td');
@@ -369,15 +374,19 @@ class FallSimulationLayout {
                     table.appendChild(tr2);
                   }
                 }
+
               } else if (this.stepFormTypes[this.currentSetupStep] === 'physics-setup') {
-                (drawPreview(this.currentSetupStep))({});
+                (drawPreview(this.currentSetupStep))({}); // to update physics step size hint
               }
+
               this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
+              this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].scrollIntoView();
             }
           };
         }
       )(i));
-      if (form.getElementsByClassName('back-button').length > 0) {
+
+      if (form.getElementsByClassName('back-button').length > 0) { // go to previous setup step
         for (const btn of form.getElementsByClassName('back-button')) {
           btn.addEventListener('click', (
             (idx) => {
@@ -393,11 +402,13 @@ class FallSimulationLayout {
                 this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = 'black';
                 this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '0';
                 this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
+                this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].scrollIntoView();
               };
             }
           )(i));
         }
       }
+
       form.addEventListener('input', drawPreview(i));
       form.addEventListener('reset', evt => setTimeout(() => (drawPreview(i))(evt), 0));
       (drawPreview(0))({});
@@ -407,50 +418,103 @@ class FallSimulationLayout {
       if (i > 0)
         this.stepElements[i].getElementsByClassName('step-body')[0].style.display = 'none';
 
-      if (this.stepFormTypes[i] === 'saved-configs') {
-        const table = document.getElementById('load-auto-saved-results');
-        const firstChild = table.getElementsByTagName('tr')[0];
-        table.replaceChildren(firstChild);
-        table.style.marginBottom = '1em';
-        const autoSavedResults = SimulationStorageManager.autoSavedResults;
-        if (autoSavedResults.length === 0) {
-          const tr = document.createElement('tr');
-          const td = document.createElement('td');
-          td.setAttribute('colspan', '2');
-          td.classList.add('fullwidth-text');
-          td.textContent = 'No automatically saved simulation results are available.';
-          tr.appendChild(td);
-          table.appendChild(tr);
-        } else {
-          for (const res of autoSavedResults) {
+      if (this.stepFormTypes[i] === 'saved-configs') { // setup options for loading stored results
+        const createSavedResultsTable = (table, savedResults, automatic = false) => {
+          const firstChild = table.getElementsByTagName('tr')[0];
+          table.replaceChildren(firstChild);
+          table.style.marginBottom = '1em';
+          if (savedResults.length === 0) {
             const tr = document.createElement('tr');
-            const leftTd = document.createElement('td');
-            const rightTd = document.createElement('td');
-            leftTd.textContent = `Saved on ${(new Date(res.date)).toLocaleString(undefined, {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit"
-            })} (${numToUnitStr(JSON.stringify(res).length, 'Byte', 1)})`;
-            const loadButton = document.createElement('button');
-            loadButton.textContent = 'Load';
-            loadButton.addEventListener('click', ((config, res) => {
-              return (evt) => {
-                this.setupMaskSettings = config;
-                this.setupSimulationRunningLayout();
-                this.simulationDuration = this.setupMaskSettings['simulation-duration'];
-                this.simResAutoSaved = true;
-                this.progressInfoText.textContent = `Simulation completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
-                this.setupSimulationResultLoop(res, config['frame-rate']);
-              };
-            })(res.configuration, res.result))
-            rightTd.appendChild(loadButton);
-            tr.appendChild(leftTd);
-            tr.appendChild(rightTd);
+            const td = document.createElement('td');
+            td.setAttribute('colspan', '2');
+            td.classList.add('fullwidth-text');
+            td.textContent = `No ${automatic ? 'automatically ' : ''}saved simulation results are available.`;
+            tr.appendChild(td);
             table.appendChild(tr);
+          } else {
+            for (const res of savedResults) {
+              const tr = document.createElement('tr');
+              const leftTd = document.createElement('td');
+              const rightTd = document.createElement('td');
+              leftTd.textContent = `${(typeof res.name === 'string') ? `${res.name}, s` : 'S'}aved on ${(new Date(res.date)).toLocaleString(undefined, {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit"
+              })} (${numToUnitStr(JSON.stringify(res).length, 'Byte', 1)})`;
+              const loadButton = document.createElement('button');
+              loadButton.textContent = 'Load';
+              loadButton.addEventListener('click', ((config, res, userName) => {
+                return (evt) => {
+                  this.setupMaskSettings = config;
+                  this.setupSimulationRunningLayout();
+                  this.simulationDuration = this.setupMaskSettings['simulation-duration'];
+                  this.simResAutoSaved = false;
+                  this.simResUserSaved = null;
+                  if (userName === null || typeof userName === 'undefined')
+                    this.simResAutoSaved = true;
+                  else
+                    this.simResUserSaved = userName;
+                  this.progressInfoText.textContent = `Simulation completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
+                  this.setupSimulationResultLoop(res, config['frame-rate']);
+                };
+              })(res.configuration, res.result, automatic ? null : res.name))
+              rightTd.appendChild(loadButton);
+              tr.appendChild(leftTd);
+              tr.appendChild(rightTd);
+              table.appendChild(tr);
+            }
           }
-        }
+        };
+        const autoSavedTable = document.getElementById('load-auto-saved-results');
+        const autoSavedResults = SimulationStorageManager.autoSavedResults;
+        createSavedResultsTable(autoSavedTable, autoSavedResults, true);
+        const savedTable = document.getElementById('load-saved-results');
+        const savedResults = SimulationStorageManager.savedResults;
+        createSavedResultsTable(savedTable, savedResults);
+
+      } else if (this.stepFormTypes[i] === 'rope-setup') { // setup mask to input rope manufacturer data
+        const manufacturerDataInput = ((idx) => {
+          return () => {
+            if (idx !== this.currentSetupStep) return;
+            const impactForce = readNumberFromInput(document.getElementById('impact-force'), 'float') * 1000;
+            const staticElongation = readNumberFromInput(document.getElementById('static-elongation'), 'float') / 100;
+            const dynamicElongation = readNumberFromInput(document.getElementById('dynamic-elongation'), 'float') / 100;
+            const staticElConst = staticElongation / (80 * GRAVITY_OF_EARTH);
+            const dynamicElConst = dynamicElongation / impactForce;
+            const estimatedElConst = Math.round(1000 * 1000 * (0.9 * staticElConst + 0.1 * dynamicElConst)) / 1000;
+            document.getElementById('elasticity-constant').value = estimatedElConst;
+            document.getElementById('elasticity-constant-hint').innerHTML = `The static elongation leads to an approximate elasticity constant of ${
+              Math.round(1000 * 1000 * staticElConst) / 1000}&times;10<sup>-3</sup> per Newton. The dynamic elongation and impact force lead to an approximate elasticity constant of ${
+              Math.round(1000 * 1000 * dynamicElConst) / 1000}&times;10<sup>-3</sup> per Newton. A weighted average of the two will be used as elasticity constant (90 % weight on static value, 10 % weight on dynamic value).`;
+          };
+        })(i);
+        document.getElementById('change-elasticity-setup').addEventListener('click', ((idx) => {
+          return () => {
+            if (idx !== this.currentSetupStep) return;
+            const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
+            if (table.classList.contains('rope-manufacturer-info'))
+              table.classList.remove('rope-manufacturer-info');
+            else
+              table.classList.add('rope-manufacturer-info');
+            const ropeManInputActive = table.classList.contains('rope-manufacturer-info');
+            if (ropeManInputActive) {
+              document.getElementById('change-elasticity-setup').textContent = 'Enter elasticity constant directly';
+              document.getElementById('elasticity-constant').setAttribute('disabled', 'disabled');
+              document.getElementById('impact-force').scrollIntoView();
+              manufacturerDataInput();
+            } else {
+              document.getElementById('change-elasticity-setup').textContent = 'Enter rope manufacturer data';
+              document.getElementById('elasticity-constant').removeAttribute('disabled');
+              document.getElementById('elasticity-constant-hint').textContent = '';
+              document.getElementById('change-elasticity-setup').scrollIntoView();
+            }
+          };
+        })(i));
+        document.getElementById('impact-force').addEventListener('input', manufacturerDataInput);
+        document.getElementById('static-elongation').addEventListener('input', manufacturerDataInput);
+        document.getElementById('dynamic-elongation').addEventListener('input', manufacturerDataInput);
       }
     }
   }
@@ -493,6 +557,8 @@ class FallSimulationLayout {
         0,
         'quickdraw'
       );
+      if (this.setupMaskSettings.hasOwnProperty('friction-coefficient'))
+        nDeflPt.frictionCoefficient = this.setupMaskSettings['friction-coefficient'];
       nDeflPt.drawingColor = new Color(52, 90, 93);
       if (i != this.setupMaskSettings['draw-number'] - 1)
         nDeflPt.ignoreInGraphs = true;
@@ -748,6 +814,8 @@ class FallSimulationLayout {
     this.setupMaskSettings['simulation-duration'] = this.simulationDuration;
     /** @type {boolean} whether the simulation result was saved automatically */
     this.simResAutoSaved = SimulationStorageManager.autoSaveResult(this.setupMaskSettings, snapshots);
+    /** @type {string|null} the name given to the simulation by the user for saving it, or null if the user didn't save it yet */
+    this.simResUserSaved = null;
     
     this.progressInfoText.textContent = `Simulation ${i-1 == numSteps ? '' : '(partially) '}completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
     this.setupSimulationResultLoop(snapshots, FPS);

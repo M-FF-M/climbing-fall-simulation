@@ -36,6 +36,8 @@
 
       <div class="step-body">
         <form class="step-form">
+          <button type="submit">Manual configuration</button>
+
           <table class="step-form-table">
             <tr class="additional-input-info">
               <td colspan="2">
@@ -54,6 +56,14 @@
             </tr>
           </table>
 
+          <table class="step-form-table highlighted-table" id="load-saved-results">
+            <tr>
+              <td colspan="2" class="fullwidth-text">
+                Simulation results saved by the user
+              </td>
+            </tr>
+          </table>
+
           <button type="submit">Manual configuration</button>
         </form>
       </div>
@@ -64,6 +74,8 @@
 
       <div class="step-body">
         <form class="step-form">
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+
           <table class="step-form-table">
             <tr class="additional-input-info">
               <td colspan="2">
@@ -209,21 +221,37 @@
             </tr>
           </table>
 
-          <button class="back-button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
         </form>
       </div>
     </div>
 
     <div class="setup-step" id="draw-setup">
-      <div class="step-header"><span class="step-header-num">1.</span> Quick draw positions <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+      <div class="step-header"><span class="step-header-num">1.</span> Quick draw setup <span class="inline-icon material-symbols-outlined step-done">check</span></div>
 
       <div class="step-body">
         <form class="step-form">
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+
           <table class="step-form-table">
+            <tr>
+              <td><label for="friction-coefficient">Friction coefficient:</label></td>
+              <td><input type="number" id="friction-coefficient" min="0" max="10" value="0.125" step="0.001" /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a (unitless) number between 0 and 10. This specifies the coefficient of friction between carabiners and rope.
+                The higher the coefficient of friction, the more friction occurs between rope and carabiners. Check
+                <a href="https://en.wikipedia.org/wiki/Capstan_equation">Wikipedia on the capstan equation</a> to see how the
+                coefficient of friction enters into force calculations. In this model of the real world, the carabiner diameter does
+                not influence the amount of friction.
+              </td>
+            </tr>
             <tr class="additional-input-info">
               <td colspan="2">
                 <span class="info-icon material-symbols-outlined">info</span>
-                Here, you can change the height of every quick draw (or other protection point).
+                Below, you can change the height of every quick draw (or other protection point).
                 The draws are numbered from the belayer's (or fixed anchor's) side, starting with 1, in ascending
                 order up to the climber's side. Heights may be between -2 and 50 meters, and must be above the ground level.
                 Next to the height, you can also specify sideways shifts between -25 and 25 meters. These correspond to the
@@ -233,7 +261,7 @@
             </tr>
           </table>
 
-          <button class="back-button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
         </form>
       </div>
     </div>
@@ -243,7 +271,53 @@
 
       <div class="step-body">
         <form class="step-form">
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+
           <table class="step-form-table">
+            <tr class="rope-manufacturer-info">
+              <td><label for="impact-force">Impact force:</label></td>
+              <td><input type="number" id="impact-force" min="1" max="12" value="8.8" step="0.01" /> kilonewton</td>
+            </tr>
+            <tr class="additional-input-info rope-manufacturer-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                The impact force in kilonewton, measured during a UIAA norm fall of an 80 kg mass with a fall factor of around 1.8 and with a rope of
+                approximate length 2.6 meters.
+                The force is measured between the rope and the falling mass. Rope manufacturers must provide
+                this information for UIAA certification (UIAA norm 101, EN 892, see <a href="https://www.theuiaa.org/safety/safety-standards/">UIAA safety standards</a>).
+              </td>
+            </tr>
+            <tr class="rope-manufacturer-info">
+              <td><label for="static-elongation">Static elongation:</label></td>
+              <td><input type="number" id="static-elongation" min="0" max="10" value="5.5" step="0.01" /> %</td>
+            </tr>
+            <tr class="additional-input-info rope-manufacturer-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                The relative static elongation of a rope of length 1 meter under a load of 80 kg. Rope manufacturers must provide this value.
+              </td>
+            </tr>
+            <tr class="rope-manufacturer-info">
+              <td><label for="dynamic-elongation">Dynamic elongation:</label></td>
+              <td><input type="number" id="dynamic-elongation" min="0" max="40" value="32" step="0.01" /> %</td>
+            </tr>
+            <tr class="additional-input-info rope-manufacturer-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                The relative dynamic elongation of a rope with a length of about 2.6 meters under a UIAA norm fall of an 80 kg mass with a fall factor of around 1.8. Rope manufacturers must provide this value.
+              </td>
+            </tr>
+            <tr>
+              <td class="centered" colspan="2"><button id="change-elasticity-setup" type="button">Enter rope manufacturer data</button></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                You can either enter the elasticity constant of the rope directly (see next input field), or you can enter data provided
+                by a rope manufacturer (impact force, static elongation, dynamic elongation). If entering rope manufacturer data, the elasticity
+                constant will be estimated automatically.
+              </td>
+            </tr>
             <tr>
               <td><label for="elasticity-constant">Elasticity constant:</label></td>
               <td><input type="number" id="elasticity-constant" min="0.001" max="10" value="0.079" step="0.001" /> &times;10<sup>-3</sup> per Newton</td>
@@ -253,7 +327,7 @@
                 <span class="info-icon material-symbols-outlined">info</span>
                 The elasticity constant measures the relative amount by which the rope stretches if a stretching force of 1 Newton is applied. That is,
                 if a rope has a rest length of 5 meters, the elasticity constant is 0.1&times;10<sup>-3</sup> per Newton, and a force of 2 Newton is applied,
-                then the rope will stretch by 5 &times; 0.1&times;10<sup>-3</sup> &times; 2 = 10<sup>-3</sup> meters.
+                then the rope will stretch by 5 &times; 0.1&times;10<sup>-3</sup> &times; 2 = 10<sup>-3</sup> meters. <span id="elasticity-constant-hint"></span>
               </td>
             </tr>
             <tr>
@@ -285,12 +359,14 @@
               <td colspan="2" class="small-info">
                 <span class="info-icon material-symbols-outlined">info</span>
                 How much to damp rope stretching. The value has no direct physical meaning, but the higher the value, the less &ldquo;springy&rdquo;
-                the rope is (rope length changes due to stretching are damped to a higher extent).
+                the rope is (rope length changes due to stretching are damped to a higher extent). Note that the rope is currently modelled as
+                a linear spring. The effect of the stretch damping parameter is quite limited. To get a more realistic model, an extension to
+                a viscoelastic rope model is planned at some point in the future.
               </td>
             </tr>
           </table>
 
-          <button class="back-button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
         </form>
       </div>
     </div>
@@ -300,6 +376,8 @@
 
       <div class="step-body">
         <form class="step-form">
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+
           <table class="step-form-table">
             <tr>
               <td><label for="rope-segments">Rope segments:</label></td>
@@ -328,7 +406,7 @@
             </tr>
           </table>
 
-          <button class="back-button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
         </form>
       </div>
     </div>
@@ -338,6 +416,8 @@
 
       <div class="step-body">
         <form class="step-form">
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Start simulation</button>
+
           <table class="step-form-table">
             <tr>
               <td><label for="frame-rate">Capturing frame rate:</label></td>
@@ -366,7 +446,7 @@
             </tr>
           </table>
 
-          <button class="back-button">Back</button> <button type="reset">Reset</button> <button type="submit">Start simulation</button>
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Start simulation</button>
         </form>
       </div>
     </div>
@@ -375,13 +455,24 @@
 
   <div id="simulation-menu">
     <div class="menu-container">
-      <div class="menu-header"><span>Menu</span><button id="close-menu" class="icon-button material-symbols-outlined">close</button></div>
+      <div class="menu-header"><span>Menu</span><button id="close-menu" class="icon-button material-symbols-outlined" type="button">close</button></div>
 
-      <div class="menu-section"><button id="change-views">Change displayed graphs / views</button></div>
+      <div class="menu-section"><button id="change-views" type="button">Change displayed graphs / views</button></div>
 
-      <div class="menu-section" id="menu-save"><span class="menu-section-header">Save simulation</span><br /><span id="saved-automatically"></span><br /><button id="save-on-disk">Save simulation result on disk</button></div>
+      <div class="menu-section" id="menu-save">
+        <span class="menu-section-header">Save simulation</span><br />
+        <span id="saved-automatically"></span><br />
+        <button id="save-on-disk" type="button">Save simulation result on disk</button><br />
+        <span id="save-in-browser-hint"></span><br />
+        Name for saving: <input type="text" id="save-in-browser-name" /> <button id="save-in-browser" type="button">Save simulation result in browser</button>
+      </div>
       
-      <div class="menu-section"><span class="menu-section-header">Climbing fall simulation</span><br /><span id="menu-version"></span><br />&copy; Fabian Michel<br />Published under the <a href="https://github.com/M-FF-M/climbing-fall-simulation/blob/master/LICENSE.md">MIT License</a></div>
+      <div class="menu-section">
+        <span class="menu-section-header">Climbing fall simulation</span><br />
+        <span id="menu-version"></span><br />
+        &copy; Fabian Michel<br />
+        Published under the <a href="https://github.com/M-FF-M/climbing-fall-simulation/blob/master/LICENSE.md">MIT License</a>
+      </div>
     </div>
   </div>
 

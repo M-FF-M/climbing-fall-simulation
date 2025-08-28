@@ -20,7 +20,9 @@ const SETUP_MASK_STEPS = {
     ]
   },
   'draw-setup': {
-    inputs: []
+    inputs: [
+      { type: 'float', id: 'friction-coefficient' }
+    ]
   },
   'rope-setup': {
     inputs: [
@@ -104,6 +106,17 @@ function verifySetupMaskStep(stepNumber, settingsObject) {
     return;
   }
   const stepId = SETUP_MASK_STEPS.order[stepNumber];
+  for (const { type, id } of SETUP_MASK_STEPS[stepId].inputs) {
+    if (type === 'float' || type === 'int') {
+      if (settingsObject['ground-present'] && (id === 'climber-height' || id === 'last-draw-height'))
+        settingsObject[id] = readNumberFromInput(document.getElementById(id), type, settingsObject['ground-level']);
+      else
+        settingsObject[id] = readNumberFromInput(document.getElementById(id), type);
+    } else if (type === 'boolean') {
+      const val = document.getElementById(id).checked;
+      settingsObject[id] = val;
+    }
+  }
   if (stepId === 'draw-setup') {
     let i = 0;
     while (document.getElementById(`draw-${i}-height`) !== null) {
@@ -113,18 +126,6 @@ function verifySetupMaskStep(stepNumber, settingsObject) {
         settingsObject[`draw-${i}-height`] = readNumberFromInput(document.getElementById(`draw-${i}-height`), 'float');
       settingsObject[`draw-${i}-sideways`] = readNumberFromInput(document.getElementById(`draw-${i}-sideways`), 'float');
       i++;
-    }
-  } else {
-    for (const { type, id } of SETUP_MASK_STEPS[stepId].inputs) {
-      if (type === 'float' || type === 'int') {
-        if (settingsObject['ground-present'] && (id === 'climber-height' || id === 'last-draw-height'))
-          settingsObject[id] = readNumberFromInput(document.getElementById(id), type, settingsObject['ground-level']);
-        else
-          settingsObject[id] = readNumberFromInput(document.getElementById(id), type);
-      } else if (type === 'boolean') {
-        const val = document.getElementById(id).checked;
-        settingsObject[id] = val;
-      }
     }
   }
 }

@@ -14,6 +14,7 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 - complete menu with additional settings
 - add the option to store simulation results in-browser and to download and upload them
+- show fall factor and other key statistics in menu
 - add quick setup for UIAA norm fall
 - add option to hide certain objects in the graph by clicking on the respective legend
 - decrease the axis legend text size if it covers too much of the available space

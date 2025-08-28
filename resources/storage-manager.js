@@ -10,14 +10,43 @@ class SimulationStorageManager {
   static get autoSavedResults() {
     const autoSavedRes = localStorage.getItem('auto-saved-results');
     if (autoSavedRes === null) return [];
-    const res = JSON.parse(autoSavedRes);
-    for (const singleRes of res) {
-      for (const snapshot of singleRes.result) {
-        for (let i = 0; i < snapshot.bodies.length; i++)
-          snapshot.bodies[i] = deserializeObjectSnapshot(snapshot.bodies[i]);
+    try {
+      const res = JSON.parse(autoSavedRes);
+      for (const singleRes of res) {
+        try {
+          for (const snapshot of singleRes.result) {
+            for (let i = 0; i < snapshot.bodies.length; i++)
+              snapshot.bodies[i] = deserializeObjectSnapshot(snapshot.bodies[i]);
+          }
+        } catch (e) {  }
       }
+      return res;
+    } catch (e) {
+      return [];
     }
-    return res;
+  }
+
+  /**
+   * Get all simulation results which have been saved to local storage by the user
+   * @type {{name: string, date: string, configuration: object, result: {time: number, bodies: ObjectSnapshot[]}[]}[]}
+   */
+  static get savedResults() {
+    const savedRes = localStorage.getItem('saved-results');
+    if (savedRes === null) return [];
+    try {
+      const res = JSON.parse(savedRes);
+      for (const singleRes of res) {
+        try {
+          for (const snapshot of singleRes.result) {
+            for (let i = 0; i < snapshot.bodies.length; i++)
+              snapshot.bodies[i] = deserializeObjectSnapshot(snapshot.bodies[i]);
+          }
+        } catch (e) {  }
+      }
+      return res;
+    } catch (e) {
+      return [];
+    }
   }
 
   /**
@@ -44,6 +73,24 @@ class SimulationStorageManager {
     } else {
       return false;
     }
+  }
+
+  /**
+   * Save a simulation result in the browser
+   * @param {string} name the name under which the result should be saved
+   * @param {object} configuration the simulation configuration object
+   * @param {{time: number, bodies: ObjectSnapshot[]}[]} result the simulation result
+   */
+  static saveResultInBrowser(name, configuration, result) {
+    const saveObject = {
+      name,
+      date: (new Date()).toISOString(),
+      configuration,
+      result
+    };
+    const currentSavedResults = this.savedResults;
+    currentSavedResults.unshift(saveObject);
+    localStorage.setItem('saved-results', JSON.stringify(currentSavedResults));
   }
 
   /**
