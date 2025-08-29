@@ -13,15 +13,15 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 ## To-Do List
 
 For version 1.0.0:
-- add quick setup for UIAA norm fall
-- add delete button functionality
-- add option to hide certain objects in the graph by clicking on the respective legend
 - decrease the axis legend text size if it covers too much of the available space
 - adjust element sizes and numbers for small screens and touch devices
 - adjust slider thickness for touch devices
 - publish version 1.0.0
 
 Additional improvements:
+- improve slack handling
+- add some pre-calculated simulations
+- add option to only save the simulation configuration (without the result)
 - add proper quickdraws where the carabiner is attached to a fixed point via a sling
 - add possibility of a movable belayer attached to a fixed point
 - properly implement damping for the rope to get rid of the too-springy behavior

@@ -80,6 +80,34 @@ class SimulationStorageManager {
   }
 
   /**
+   * Delete an automatically saved result
+   * @param {number} idx the index of the automatically saved result to delete (index in autoSavedResults)
+   */
+  static deleteAutoSavedResult(idx) {
+    const currentAutoSavedResults = this.autoSavedResults;
+    if (idx < currentAutoSavedResults.length) {
+      currentAutoSavedResults.splice(idx, 1);
+      try {
+        localStorage.setItem('auto-saved-results', JSON.stringify(currentAutoSavedResults));
+      } catch (e) {  }
+    }
+  }
+
+  /**
+   * Delete a result saved by the user
+   * @param {number} idx the index of the saved result to delete (index in savedResults)
+   */
+  static deleteSavedResult(idx) {
+    const currentSavedResults = this.savedResults;
+    if (idx < currentSavedResults.length) {
+      currentSavedResults.splice(idx, 1);
+      try {
+        localStorage.setItem('saved-results', JSON.stringify(currentSavedResults));
+      } catch (e) {  }
+    }
+  }
+
+  /**
    * Save a simulation result in the browser
    * @param {string} name the name under which the result should be saved
    * @param {object} configuration the simulation configuration object

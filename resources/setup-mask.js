@@ -16,7 +16,8 @@ const SETUP_MASK_STEPS = {
       { type: 'int', id: 'draw-number' },
       { type: 'boolean', id: 'fixed-anchor' },
       { type: 'boolean', id: 'belayer-fixed' },
-      { type: 'float', id: 'belayer-weight' }
+      { type: 'float', id: 'belayer-weight' },
+      { type: 'float', id: 'slack' }
     ]
   },
   'draw-setup': {
@@ -51,6 +52,27 @@ const SETUP_MASK_STEPS = {
     ]
   }
 }
+
+const UIAA_NORM_FALL_SETUP = {
+  "wall-angle": 0,
+  "ground-present": true,
+  "ground-level": -8,
+  "climber-height": 2.56,
+  "climber-sideways": 0.23,
+  "climber-weight": 80,
+  "last-draw-height": 0.26,
+  "draw-number": 1,
+  "fixed-anchor": true,
+  "belayer-fixed": false,
+  "belayer-weight": 70,
+  "slack": 0,
+  "friction-coefficient": 0.125,
+  "draw-0-height": 0.26,
+  "draw-0-sideways": 0.15,
+  "belayer-wall-distance": 0.7,
+  "climber-wall-distance": 0.7,
+  "draw-0-wall-distance": 0.7
+};
 
 /**
  * Ensure that a number value read from an input element meets the specified input limits
@@ -175,8 +197,13 @@ function deleteSetupMaskStepSettings(stepNumber, settingsObject) {
 function changeSetupDefaults(defaultObject) {
   for (const prop of Object.keys(defaultObject)) {
     if (document.getElementById(prop) !== null) {
-      document.getElementById(prop).value = defaultObject[prop];
-      document.getElementById(prop).defaultValue = defaultObject[prop];
+      if (typeof defaultObject[prop] === 'boolean') {
+        document.getElementById(prop).checked = defaultObject[prop];
+        document.getElementById(prop).defaultChecked = defaultObject[prop];
+      } else {
+        document.getElementById(prop).value = defaultObject[prop];
+        document.getElementById(prop).defaultValue = defaultObject[prop];
+      }
     }
   }
 }

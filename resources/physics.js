@@ -22,9 +22,10 @@
  * @typedef {Object} MaximaSnapshot snapshot of running maxima statistics of a body (e.g. maximal speed, maximal applied force up to current time point)
  * @property {number} [speed] the running maximal speed (in m/s) (maximal speed of the climber's rope end in case of a rope)
  * @property {number} [force] the running maximal force (in Newton) applied to the body (stretching force in case of a rope)
+ * @property {number} [forceAvgWindow] the length of the force averaging window in seconds, if the maximum force reported is taken from an averaged force value
  * @property {number} [climberStretching] the running maximal stretching force (in Newton) at the climber's end of the rope
  * @property {number} [belayerStretching] the running maximal stretching force (in Newton) at the belayer's end of the rope
- * @property {number} [forceAvgWindow] the length of the force averaging window in seconds, if the maximum force reported is taken from an averaged force value
+ * @property {number} [relativeElongation] the running maximal relative elongation (elongation divided by rest length) of the rope
  */
 
 /**
@@ -194,6 +195,8 @@ class Rope {
     this.maxBelayerForce = this.currentStretchingForce;
     /** @type {number} running maximum of the velocity of the climber's end of the rope (end2) */
     this.maxEndSpeed = end2.velocity.norm();
+    /** @type {number} running maximum of the relative elongation of the rope */
+    this.maxRelativeElongation = 0;
     
     /** @type {Color} color used for drawing this rope */
     this.drawingColor = new Color(0, 0, 0);
@@ -279,6 +282,7 @@ class Rope {
     }
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
     this.maxStretchingForce = Math.max(this.currentStretchingForce, this.maxStretchingForce);
+    this.maxRelativeElongation = Math.max(this.maxRelativeElongation, (this.currentLength - this.restLength) / this.restLength);
     if (Math.abs(checkRestLen - this.restLength) > PHYSICS_WORLD.EPS)
       throw new Error('The rest length of the rope segments is off!');
   }
@@ -376,7 +380,8 @@ class Rope {
         speed: this.maxEndSpeed,
         force: this.maxStretchingForce,
         climberStretching: this.maxClimberForce,
-        belayerStretching: this.maxBelayerForce
+        belayerStretching: this.maxBelayerForce,
+        relativeElongation: this.maxRelativeElongation
       }
     };
   }

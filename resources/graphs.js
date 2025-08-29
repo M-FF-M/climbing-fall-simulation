@@ -78,7 +78,7 @@ class GraphCanvas {
     this.minY = Infinity;
     /** @type {number} maximal value of the y-axis */
     this.maxY = -Infinity;
-    /** @type {{color: Color, lines: string[], coordinates: [number, number][][]}[]} the graphs to plot */
+    /** @type {{color: Color, name: string, hidden: boolean, lines: string[], coordinates: [number, number][][]}[]} the graphs to plot */
     this.graphs = [];
     /** @type {'forces'|'positions'|'energy'|'speed'} the type of the displayed graph */
     this.graphType = type;
@@ -86,9 +86,11 @@ class GraphCanvas {
     this.showLineTypeLegend = false;
     /** @type {number} force averaging window in seconds */
     this.forceAvgWindow = 0;
-    const checkGraphInitialized = (idx, visibleState, prop) => {
+    const checkGraphInitialized = (idx, visibleState, prop, name) => {
       while (idx >= this.graphs.length)
-        this.graphs.push({ lines: [], coordinates: [] });
+        this.graphs.push({ hidden: false, lines: [], coordinates: [] });
+      if (typeof this.graphs[idx].name === 'undefined' && typeof name !== 'undefined')
+        this.graphs[idx].name = name;
       if (typeof this.graphs[idx].color === 'undefined' && typeof visibleState.color !== 'undefined')
         this.graphs[idx].color = visibleState.color;
       if (!this.graphs[idx].lines.includes(prop)) {
@@ -99,6 +101,23 @@ class GraphCanvas {
     const addPlotCoordinatePair = (idx, prop, x, y) => {
       const lIdx = this.graphs[idx].lines.indexOf(prop);
       this.graphs[idx].coordinates[lIdx].push([x, y]);
+    };
+    const togglePlot = (color, name, legend) => {
+      let isHidden = false;
+      for (let i = 0; i < this.graphs.length; i++) {
+        if (this.graphs[i].name === name && this.graphs[i].color.toString() === color.toString()) {
+          this.graphs[i].hidden = !this.graphs[i].hidden;
+          isHidden = this.graphs[i].hidden;
+        }
+      }
+      if (isHidden) {
+        legend.classList.add('hidden');
+        legend.setAttribute('title', 'Click to show plot');
+      } else {
+        legend.classList.remove('hidden');
+        legend.setAttribute('title', 'Click to hide plot');
+      }
+      this.draw();
     };
     let legendcreated = false;
     const createdLegends = {};
@@ -123,7 +142,7 @@ class GraphCanvas {
                 ? bodySnapshot.forces.averageWindow / 2 : 0;
               if (type === 'forces' && subProp === 'average' && typeof bodySnapshot.forces.averageWindow === 'number')
                 this.forceAvgWindow = bodySnapshot.forces.averageWindow;
-              checkGraphInitialized(i, bodySnapshot.visibleState, subProp);
+              checkGraphInitialized(i, bodySnapshot.visibleState, subProp, bodySnapshot.name);
               addPlotCoordinatePair(i, subProp, snapshot.time - timeShift, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp] * factor);
               if (type === 'energy')
                 totalEnergy[subProp] += bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp];
@@ -131,7 +150,7 @@ class GraphCanvas {
             } else if (Array.isArray(bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp])) {
               this.minY = Math.min(this.minY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp][1]); // we only plot the height (y-coordinate, index = 1)
               this.maxY = Math.max(this.maxY, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp][1]);
-              checkGraphInitialized(i, bodySnapshot.visibleState, subProp);
+              checkGraphInitialized(i, bodySnapshot.visibleState, subProp, bodySnapshot.name);
               addPlotCoordinatePair(i, subProp, snapshot.time, bodySnapshot[ GRAPH_PROPERTIES[type].property ][subProp][1]);
               j++;
             }
@@ -149,6 +168,10 @@ class GraphCanvas {
             nameSpan.textContent = bodySnapshot.name;
             legendSpan.appendChild(colorBox);
             legendSpan.appendChild(nameSpan);
+            legendSpan.setAttribute('title', 'Click to hide plot');
+            legendSpan.addEventListener('click', ((color, name, legend) => {
+              return () => togglePlot(color, name, legend);
+            })(color, bodySnapshot.name, legendSpan));
             this.legendContainer.appendChild(legendSpan);
             if (!(color in createdLegends)) createdLegends[color] = [];
             createdLegends[color].push(bodySnapshot.name);
@@ -157,7 +180,7 @@ class GraphCanvas {
       }
       if (type === 'energy') {
         for (const subProp of GRAPH_PROPERTIES[type].subProperties) {
-          checkGraphInitialized(snapshot.bodies.length, { 'color': RAINBOW_COLORS[RAINBOW_COLORS.length - 1] }, subProp);
+          checkGraphInitialized(snapshot.bodies.length, { 'color': RAINBOW_COLORS[RAINBOW_COLORS.length - 1] }, subProp, 'entire system');
           addPlotCoordinatePair(snapshot.bodies.length, subProp, snapshot.time, totalEnergy[subProp]);
           this.maxY = Math.max(this.maxY, totalEnergy[subProp]);
         }
@@ -171,6 +194,10 @@ class GraphCanvas {
           nameSpan.textContent = 'entire system';
           legendSpan.appendChild(colorBox);
           legendSpan.appendChild(nameSpan);
+          legendSpan.setAttribute('title', 'Click to hide plot');
+          legendSpan.addEventListener('click', ((color, name, legend) => {
+            return () => togglePlot(color, name, legend);
+          })(RAINBOW_COLORS[RAINBOW_COLORS.length - 1].toString(), 'entire system', legendSpan));
           this.legendContainer.appendChild(legendSpan);
         }
       }
@@ -247,6 +274,7 @@ class GraphCanvas {
 
     // draw graphs
     for (const graphObj of this.graphs) {
+      if (graphObj.hidden) continue;
       for (let i = 0; i < graphObj.lines.length; i++) {
         let start = true;
         ctx.strokeStyle = (typeof graphObj.color !== 'undefined') ? graphObj.color.toString() : 'black';

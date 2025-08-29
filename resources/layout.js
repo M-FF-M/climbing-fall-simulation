@@ -291,155 +291,154 @@ class FallSimulationLayout {
       };
     };
 
+    const formSubmitEvtListener = (idx) => { // go to next setup step
+      return (evt) => {
+        evt.preventDefault();
+        if (idx !== this.currentSetupStep) return;
+        if (this.currentSetupStep === this.stepElements.length - 1) {
+          verifySetupMaskStep(this.currentSetupStep, this.setupMaskSettings);
+          this.prepareAndStartSimulation();
+        } else {
+          verifySetupMaskStep(this.currentSetupStep, this.setupMaskSettings);
+          this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = '#4d884e';
+          this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '1';
+          this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
+          this.currentSetupStep++;
+
+          if (this.stepFormTypes[this.currentSetupStep] === 'draw-setup') { // draw setup step
+            const numDraws = this.setupMaskSettings['draw-number'];
+            const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
+            table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1], table.getElementsByTagName('tr')[2]);
+            table.style.marginBottom = '1em';
+
+            if (numDraws == 0) {
+              const tr = document.createElement('tr');
+              const td = document.createElement('td');
+              td.setAttribute('colspan', '2');
+              td.classList.add('fullwidth-text');
+              td.textContent = 'There is nothing to do here, as you specified that no draws have been clipped.';
+              tr.appendChild(td);
+              table.appendChild(tr);
+
+            } else {
+              for (let i = 0; i < numDraws; i++) {
+                const tr = document.createElement('tr');
+                const leftTd = document.createElement('td');
+                const label = document.createElement('label');
+                label.setAttribute('for', `draw-${i}-height`);
+                label.textContent = `Height of draw ${(i+1)}:`;
+                leftTd.appendChild(label);
+                const rightTd = document.createElement('td');
+                const input = document.createElement('input');
+                input.setAttribute('id', `draw-${i}-height`);
+                input.setAttribute('type', 'number');
+                input.setAttribute('min', '-2');
+                input.setAttribute('max', '50');
+                input.setAttribute('step', '0.01');
+                if (i == numDraws - 1) input.setAttribute('disabled', 'disabled');
+                input.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-height`)
+                  ? this.setupMaskDefaultSettings[`draw-${i}-height`]
+                  : Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
+                input.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-height`)
+                  ? this.setupMaskDefaultSettings[`draw-${i}-height`]
+                  : Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
+                const units = document.createElement('span');
+                units.textContent = ' meters';
+                rightTd.appendChild(input);
+                rightTd.appendChild(units);
+                tr.appendChild(leftTd);
+                tr.appendChild(rightTd);
+                table.appendChild(tr);
+                
+                const tr2 = document.createElement('tr');
+                const leftTd2 = document.createElement('td');
+                const label2 = document.createElement('label');
+                label2.setAttribute('for', `draw-${i}-sideways`);
+                label2.textContent = `Sideways shift of draw ${(i+1)}:`;
+                leftTd2.appendChild(label2);
+                const rightTd2 = document.createElement('td');
+                const input2 = document.createElement('input');
+                input2.setAttribute('id', `draw-${i}-sideways`);
+                input2.setAttribute('type', 'number');
+                input2.setAttribute('min', '-25');
+                input2.setAttribute('max', '25');
+                input2.setAttribute('step', '0.01');
+                input2.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-sideways`)
+                  ? this.setupMaskDefaultSettings[`draw-${i}-sideways`]
+                  : Math.round(100 * (i+1) * this.setupMaskSettings['climber-sideways'] / (numDraws + 1)) / 100;
+                input2.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-sideways`)
+                  ? this.setupMaskDefaultSettings[`draw-${i}-sideways`]
+                  : Math.round(100 * (i+1) * this.setupMaskSettings['climber-sideways'] / (numDraws + 1)) / 100;
+                const units2 = document.createElement('span');
+                units2.textContent = ' meters';
+                rightTd2.appendChild(input2);
+                rightTd2.appendChild(units2);
+                tr2.appendChild(leftTd2);
+                tr2.appendChild(rightTd2);
+                table.appendChild(tr2);
+              }
+            }
+
+          } else if (this.stepFormTypes[this.currentSetupStep] === 'physics-setup') {
+            (drawPreview(this.currentSetupStep))({}); // to update physics step size hint
+
+          } else if (this.stepFormTypes[this.currentSetupStep] === 'distance-setup') { // distance setup step
+            const numDraws = this.setupMaskSettings['draw-number'];
+            const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
+            table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1],
+              table.getElementsByTagName('tr')[2], table.getElementsByTagName('tr')[3], table.getElementsByTagName('tr')[4]);
+            table.style.marginBottom = '1em';
+
+            if (numDraws == 0) {
+              const tr = document.createElement('tr');
+              const td = document.createElement('td');
+              td.setAttribute('colspan', '2');
+              td.classList.add('fullwidth-text');
+              td.textContent = 'There is nothing to do here, as you specified that no draws have been clipped.';
+              tr.appendChild(td);
+              table.appendChild(tr);
+
+            } else {
+              for (let i = 0; i < numDraws; i++) {
+                const tr = document.createElement('tr');
+                const leftTd = document.createElement('td');
+                const label = document.createElement('label');
+                label.setAttribute('for', `draw-${i}-wall-distance`);
+                label.textContent = `Wall distance of draw ${(i+1)}:`;
+                leftTd.appendChild(label);
+                const rightTd = document.createElement('td');
+                const input = document.createElement('input');
+                input.setAttribute('id', `draw-${i}-wall-distance`);
+                input.setAttribute('type', 'number');
+                input.setAttribute('min', '0.01');
+                input.setAttribute('max', '10');
+                input.setAttribute('step', '0.01');
+                input.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-wall-distance`)
+                  ? this.setupMaskDefaultSettings[`draw-${i}-wall-distance`] : 0.1;
+                input.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-wall-distance`)
+                  ? this.setupMaskDefaultSettings[`draw-${i}-wall-distance`] : 0.1;
+                const units = document.createElement('span');
+                units.textContent = ' meters';
+                rightTd.appendChild(input);
+                rightTd.appendChild(units);
+                tr.appendChild(leftTd);
+                tr.appendChild(rightTd);
+                table.appendChild(tr);
+              }
+            }
+          }
+
+          this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
+          this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].scrollIntoView();
+        }
+      };
+    };
+
     for (let i = 0; i < this.stepElements.length; i++) {
       const stepNumber = this.stepElements[i].getElementsByClassName('step-header-num')[0];
       stepNumber.textContent = `${i+1}.`;
       const form = this.stepElements[i].getElementsByTagName('form')[0];
-
-      form.addEventListener('submit', ( // go to next setup step
-        (idx) => {
-          return (evt) => {
-            evt.preventDefault();
-            if (idx !== this.currentSetupStep) return;
-            if (this.currentSetupStep === this.stepElements.length - 1) {
-              verifySetupMaskStep(this.currentSetupStep, this.setupMaskSettings);
-              this.prepareAndStartSimulation();
-            } else {
-              verifySetupMaskStep(this.currentSetupStep, this.setupMaskSettings);
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].style.color = '#4d884e';
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-done')[0].style.opacity = '1';
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'none';
-              this.currentSetupStep++;
-
-              if (this.stepFormTypes[this.currentSetupStep] === 'draw-setup') { // draw setup step
-                const numDraws = this.setupMaskSettings['draw-number'];
-                const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
-                table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1], table.getElementsByTagName('tr')[2]);
-                table.style.marginBottom = '1em';
-
-                if (numDraws == 0) {
-                  const tr = document.createElement('tr');
-                  const td = document.createElement('td');
-                  td.setAttribute('colspan', '2');
-                  td.classList.add('fullwidth-text');
-                  td.textContent = 'There is nothing to do here, as you specified that no draws have been clipped.';
-                  tr.appendChild(td);
-                  table.appendChild(tr);
-
-                } else {
-                  for (let i = 0; i < numDraws; i++) {
-                    const tr = document.createElement('tr');
-                    const leftTd = document.createElement('td');
-                    const label = document.createElement('label');
-                    label.setAttribute('for', `draw-${i}-height`);
-                    label.textContent = `Height of draw ${(i+1)}:`;
-                    leftTd.appendChild(label);
-                    const rightTd = document.createElement('td');
-                    const input = document.createElement('input');
-                    input.setAttribute('id', `draw-${i}-height`);
-                    input.setAttribute('type', 'number');
-                    input.setAttribute('min', '-2');
-                    input.setAttribute('max', '50');
-                    input.setAttribute('step', '0.01');
-                    if (i == numDraws - 1) input.setAttribute('disabled', 'disabled');
-                    input.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-height`)
-                      ? this.setupMaskDefaultSettings[`draw-${i}-height`]
-                      : Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
-                    input.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-height`)
-                      ? this.setupMaskDefaultSettings[`draw-${i}-height`]
-                      : Math.round(100 * (i+1) * this.setupMaskSettings['last-draw-height'] / numDraws) / 100;
-                    const units = document.createElement('span');
-                    units.textContent = ' meters';
-                    rightTd.appendChild(input);
-                    rightTd.appendChild(units);
-                    tr.appendChild(leftTd);
-                    tr.appendChild(rightTd);
-                    table.appendChild(tr);
-                    
-                    const tr2 = document.createElement('tr');
-                    const leftTd2 = document.createElement('td');
-                    const label2 = document.createElement('label');
-                    label2.setAttribute('for', `draw-${i}-sideways`);
-                    label2.textContent = `Sideways shift of draw ${(i+1)}:`;
-                    leftTd2.appendChild(label2);
-                    const rightTd2 = document.createElement('td');
-                    const input2 = document.createElement('input');
-                    input2.setAttribute('id', `draw-${i}-sideways`);
-                    input2.setAttribute('type', 'number');
-                    input2.setAttribute('min', '-25');
-                    input2.setAttribute('max', '25');
-                    input2.setAttribute('step', '0.01');
-                    input2.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-sideways`)
-                      ? this.setupMaskDefaultSettings[`draw-${i}-sideways`]
-                      : Math.round(100 * (i+1) * this.setupMaskSettings['climber-sideways'] / (numDraws + 1)) / 100;
-                    input2.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-sideways`)
-                      ? this.setupMaskDefaultSettings[`draw-${i}-sideways`]
-                      : Math.round(100 * (i+1) * this.setupMaskSettings['climber-sideways'] / (numDraws + 1)) / 100;
-                    const units2 = document.createElement('span');
-                    units2.textContent = ' meters';
-                    rightTd2.appendChild(input2);
-                    rightTd2.appendChild(units2);
-                    tr2.appendChild(leftTd2);
-                    tr2.appendChild(rightTd2);
-                    table.appendChild(tr2);
-                  }
-                }
-
-              } else if (this.stepFormTypes[this.currentSetupStep] === 'physics-setup') {
-                (drawPreview(this.currentSetupStep))({}); // to update physics step size hint
-
-              } else if (this.stepFormTypes[this.currentSetupStep] === 'distance-setup') { // distance setup step
-                const numDraws = this.setupMaskSettings['draw-number'];
-                const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
-                table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1],
-                  table.getElementsByTagName('tr')[2], table.getElementsByTagName('tr')[3], table.getElementsByTagName('tr')[4]);
-                table.style.marginBottom = '1em';
-
-                if (numDraws == 0) {
-                  const tr = document.createElement('tr');
-                  const td = document.createElement('td');
-                  td.setAttribute('colspan', '2');
-                  td.classList.add('fullwidth-text');
-                  td.textContent = 'There is nothing to do here, as you specified that no draws have been clipped.';
-                  tr.appendChild(td);
-                  table.appendChild(tr);
-
-                } else {
-                  for (let i = 0; i < numDraws; i++) {
-                    const tr = document.createElement('tr');
-                    const leftTd = document.createElement('td');
-                    const label = document.createElement('label');
-                    label.setAttribute('for', `draw-${i}-wall-distance`);
-                    label.textContent = `Wall distance of draw ${(i+1)}:`;
-                    leftTd.appendChild(label);
-                    const rightTd = document.createElement('td');
-                    const input = document.createElement('input');
-                    input.setAttribute('id', `draw-${i}-wall-distance`);
-                    input.setAttribute('type', 'number');
-                    input.setAttribute('min', '0.01');
-                    input.setAttribute('max', '10');
-                    input.setAttribute('step', '0.01');
-                    input.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-wall-distance`)
-                      ? this.setupMaskDefaultSettings[`draw-${i}-wall-distance`] : 0.1;
-                    input.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-wall-distance`)
-                      ? this.setupMaskDefaultSettings[`draw-${i}-wall-distance`] : 0.1;
-                    const units = document.createElement('span');
-                    units.textContent = ' meters';
-                    rightTd.appendChild(input);
-                    rightTd.appendChild(units);
-                    tr.appendChild(leftTd);
-                    tr.appendChild(rightTd);
-                    table.appendChild(tr);
-                  }
-                }
-              }
-
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
-              this.stepElements[this.currentSetupStep].getElementsByClassName('step-header')[0].scrollIntoView();
-            }
-          };
-        }
-      )(i));
+      form.addEventListener('submit', formSubmitEvtListener(i));
 
       if (form.getElementsByClassName('back-button').length > 0) { // go to previous setup step
         for (const btn of form.getElementsByClassName('back-button')) {
@@ -474,6 +473,14 @@ class FallSimulationLayout {
         this.stepElements[i].getElementsByClassName('step-body')[0].style.display = 'none';
 
       if (this.stepFormTypes[i] === 'saved-configs') { // setup options for loading stored results
+        document.getElementById('uiaa-norm-fall-setup').addEventListener('click', () => {
+          this.setupMaskDefaultSettings = UIAA_NORM_FALL_SETUP;
+          changeSetupDefaults(UIAA_NORM_FALL_SETUP);
+          const ropeIdx = SETUP_MASK_STEPS.order.indexOf('rope-setup');
+          while (this.currentSetupStep < ropeIdx)
+            formSubmitEvtListener(this.currentSetupStep)({ preventDefault: () => {} });
+          (drawPreview(this.currentSetupStep))({});
+        });
         const createSavedResultsTable = (table, savedResults, automatic = false) => {
           const firstChild = table.getElementsByTagName('tr')[0];
           table.replaceChildren(firstChild);
@@ -487,17 +494,19 @@ class FallSimulationLayout {
             tr.appendChild(td);
             table.appendChild(tr);
           } else {
-            for (const res of savedResults) {
+            for (let k = 0; k < savedResults.length; k++) {
+              const res = savedResults[k];
               const tr = document.createElement('tr');
               const leftTd = document.createElement('td');
               const rightTd = document.createElement('td');
-              leftTd.textContent = `${(typeof res.name === 'string') ? `${res.name}, s` : 'S'}aved on ${(new Date(res.date)).toLocaleString(undefined, {
+              const resultDescr = `${(typeof res.name === 'string') ? `${res.name}, s` : 'S'}aved on ${(new Date(res.date)).toLocaleString(undefined, {
                 year: "numeric",
                 month: "2-digit",
                 day: "2-digit",
                 hour: "2-digit",
                 minute: "2-digit"
               })} (${numToUnitStr(JSON.stringify(res).length, 'Byte', 1)})`;
+              leftTd.textContent = resultDescr;
               const loadButton = document.createElement('button');
               loadButton.setAttribute('type', 'button');
               loadButton.textContent = 'Load';
@@ -520,10 +529,27 @@ class FallSimulationLayout {
               rightTd.appendChild(loadButton);
               tr.appendChild(leftTd);
               tr.appendChild(rightTd);
+
               const delTd = document.createElement('td');
               const deleteButton = getDeleteButton();
+              deleteButton.addEventListener('click', ((idx, automatic, name) => {
+                return () => {
+                  if (confirm(`The simulation result\n${name}\nwill be deleted permanently.`)) {
+                    if (automatic) {
+                      SimulationStorageManager.deleteAutoSavedResult(idx);
+                      const autoSavedTable = document.getElementById('load-auto-saved-results');
+                      const autoSavedResults = SimulationStorageManager.autoSavedResults;
+                      createSavedResultsTable(autoSavedTable, autoSavedResults, true);
+                    } else {
+                      SimulationStorageManager.deleteSavedResult(idx);
+                      const savedTable = document.getElementById('load-saved-results');
+                      const savedResults = SimulationStorageManager.savedResults;
+                      createSavedResultsTable(savedTable, savedResults);
+                    }
+                  }
+                };
+              })(i, automatic, resultDescr));
               delTd.appendChild(deleteButton);
-              // TODO: delete button action
               tr.appendChild(delTd);
               table.appendChild(tr);
             }
@@ -659,7 +685,7 @@ class FallSimulationLayout {
       lastPos = nDeflPt.pos;
     }
     const finalSegLen = GLOBALS.climber.pos.minus(lastPos).norm();
-    GLOBALS.ropeLength += finalSegLen + 0.1; // 10 cm slack
+    GLOBALS.ropeLength += finalSegLen + (this.setupMaskSettings.hasOwnProperty('slack') ? this.setupMaskSettings['slack'] : 0.1); // 10 cm slack
     GLOBALS.ropeSegmentNum = this.setupMaskSettings['rope-segments'];
     // GLOBALS.climber.mass = (GLOBALS.ropeLength * 0.062) / (GLOBALS.ropeSegmentNum - 1); GLOBALS.climberMass = GLOBALS.climber.mass; // no climber at the end of the rope
 
@@ -954,6 +980,7 @@ class FallSimulationLayout {
       } else if (bodySnap.name === 'rope') {
         document.getElementById('peak-impact-climber').textContent = numToUnitStr(bodySnap.runningMaxima.climberStretching, 'N', 2);
         document.getElementById('peak-impact-belayer').textContent = numToUnitStr(bodySnap.runningMaxima.belayerStretching, 'N', 2);
+        document.getElementById('peak-rope-elongation').textContent = numToStr(bodySnap.runningMaxima.relativeElongation * 100) + ' %';
       } else if (bodySnap.name === 'quickdraw') {
         document.getElementById('peak-force-draw').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
         if (bodySnap.runningMaxima.hasOwnProperty('forceAvgWindow'))
@@ -1019,6 +1046,7 @@ class FallSimulationLayout {
       } else if (bodySnap.name === 'rope') {
         document.getElementById('peak-impact-climber-running').textContent = numToUnitStr(bodySnap.runningMaxima.climberStretching, 'N', 2);
         document.getElementById('peak-impact-belayer-running').textContent = numToUnitStr(bodySnap.runningMaxima.belayerStretching, 'N', 2);
+        document.getElementById('peak-rope-elongation-running').textContent = numToStr(bodySnap.runningMaxima.relativeElongation * 100) + ' %';
       } else if (bodySnap.name === 'quickdraw') {
         document.getElementById('peak-force-draw-running').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
       }

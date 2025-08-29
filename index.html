@@ -39,10 +39,23 @@
           <button type="submit">Manual configuration</button>
 
           <table class="step-form-table">
+            <tr>
+              <td class="centered" colspan="2"><button id="uiaa-norm-fall-setup" type="button">Use UIAA norm fall setup</button></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Configures the simulation to match the setup of a UIAA norm fall (see <a href="https://www.theuiaa.org/safety/safety-standards/">UIAA safety standards</a>).
+                Note that the UIAA standard setup cannot be exactly reproduced because a simplified model is used in this simulation.
+                Also note that the simulation currently uses a linear spring model for the rope, instead of the more realistic viscoelastic model.
+                This means that the forces measured by rope manufacturers during a UIAA norm fall will not match the simulated forces exactly, even if you
+                input the exact rope specifications.
+              </td>
+            </tr>
             <tr class="additional-input-info">
               <td colspan="2">
                 <span class="info-icon material-symbols-outlined">info</span>
-                Here, you can load saved simulation results. Saving and loading only the simulation configurations is currently not yet supported.
+                Below, you can load saved simulation results. Saving and loading only the simulation configurations is currently not yet supported.
               </td>
             </tr>
             <tr>
@@ -230,6 +243,22 @@
                 Supply a weight in kilograms, between 1 and 150.
                 The belayer is currently represented only as a point of zero volume, but with a positive mass.
                 If you have selected fixed anchor above, then this setting has no effect.
+              </td>
+            </tr>
+            <tr>
+              <td><label for="slack">Slack:</label></td>
+              <td><input type="number" id="slack" min="0" max="1" value="0.1" step="0.01" /> meters</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number in meters, between 0 and 1. This number corresponds to how much slack will be added to the rope.
+                0 meters of slack means that the rope is tight at the beginning of simulation. <b>Please note</b>: slack is currently
+                not well integrated into the simulation. If you supply a large amount of slack, the rope will still start as a straight line
+                between belayer, quick draws and climber at the beginning of the simulation, but in a compressed state. The rope will then
+                explode outwards at the beginning of the simulation to reach its actual length. This causes large forces to appear at
+                the beginning of the simulation, which do not match what would happen in reality. It is planned to improve the slack
+                handling in the simulation at some point in the future.
               </td>
             </tr>
           </table>
@@ -528,6 +557,11 @@
             <td id="fall-factor-running"></td>
           </tr>
           <tr>
+            <td>Peak rope elongation</td>
+            <td id="peak-rope-elongation"></td>
+            <td id="peak-rope-elongation-running"></td>
+          </tr>
+          <tr>
             <td>Peak impact force (climber&rsquo;s side)</td>
             <td id="peak-impact-climber"></td>
             <td id="peak-impact-climber-running"></td>
@@ -573,6 +607,8 @@
             <td id="peak-speed-belayer-running"></td>
           </tr>
         </table>
+        Please note: the approximate fall factor above will be incorrect if the system contains a large amount of slack at the beginning
+        of the simulation, or if the climber is not positioned straight above the last quick draw.
       </div>
       
       <div class="menu-section">

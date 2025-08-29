@@ -297,12 +297,30 @@ select.size-to-icon-button {
   padding-top: 0.2em;
 }
 
+.legend-box.hidden span:not(.legend-color-dot) {
+  text-decoration: line-through;
+}
+
 .legend-color-dot {
   display: inline-block;
   width: 0.8em;
   height: 0.8em;
   border-radius: 0.4em;
   margin-right: 0.4em;
+  transition-property: opacity;
+  transition-duration: 500ms;
+}
+
+.legend-box.hidden .legend-color-dot {
+  opacity: 0.5;
+}
+
+.legend-box.hidden:hover .legend-color-dot {
+  opacity: 1;
+}
+
+.legend-box:hover {
+  background-color: #bbb;
 }
 
 .info-box {
