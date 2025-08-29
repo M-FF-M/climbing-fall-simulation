@@ -1,6 +1,6 @@
 
 const SETUP_MASK_STEPS = {
-  order: ['saved-configs', 'basic-setup', 'draw-setup', 'rope-setup', 'physics-setup', 'simulation-start'],
+  order: ['saved-configs', 'basic-setup', 'draw-setup', 'distance-setup', 'rope-setup', 'physics-setup', 'simulation-start'],
   'saved-configs': {
     inputs: []
   },
@@ -22,6 +22,12 @@ const SETUP_MASK_STEPS = {
   'draw-setup': {
     inputs: [
       { type: 'float', id: 'friction-coefficient' }
+    ]
+  },
+  'distance-setup': {
+    inputs: [
+      { type: 'float', id: 'belayer-wall-distance' },
+      { type: 'float', id: 'climber-wall-distance' }
     ]
   },
   'rope-setup': {
@@ -127,6 +133,12 @@ function verifySetupMaskStep(stepNumber, settingsObject) {
       settingsObject[`draw-${i}-sideways`] = readNumberFromInput(document.getElementById(`draw-${i}-sideways`), 'float');
       i++;
     }
+  } else if (stepId === 'distance-setup') {
+    let i = 0;
+    while (document.getElementById(`draw-${i}-wall-distance`) !== null) {
+      settingsObject[`draw-${i}-wall-distance`] = readNumberFromInput(document.getElementById(`draw-${i}-wall-distance`), 'float');
+      i++;
+    }
   }
 }
 
@@ -137,6 +149,9 @@ function verifySetupMaskStep(stepNumber, settingsObject) {
  */
 function deleteSetupMaskStepSettings(stepNumber, settingsObject) {
   const stepId = SETUP_MASK_STEPS.order[stepNumber];
+  for (const { id } of SETUP_MASK_STEPS[stepId].inputs) {
+    delete settingsObject[id];
+  }
   if (stepId === 'draw-setup') {
     let i = 0;
     while (settingsObject.hasOwnProperty(`draw-${i}-height`)) {
@@ -144,9 +159,11 @@ function deleteSetupMaskStepSettings(stepNumber, settingsObject) {
       delete settingsObject[`draw-${i}-sideways`];
       i++;
     }
-  } else {
-    for (const { id } of SETUP_MASK_STEPS[stepId].inputs) {
-      delete settingsObject[id];
+  } else if (stepId === 'distance-setup') {
+    let i = 0;
+    while (settingsObject.hasOwnProperty(`draw-${i}-wall-distance`)) {
+      delete settingsObject[`draw-${i}-wall-distance`];
+      i++;
     }
   }
 }
@@ -179,6 +196,10 @@ function fillWithRemainingSteps(stepNumber, settingsObject, defaultObject = {}) 
       for (let k = 0; k < retObj['draw-number']; k++) {
         retObj[`draw-${k}-height`] = defaultObject.hasOwnProperty(`draw-${k}-height`) ? defaultObject[`draw-${k}-height`] : Math.round(100 * (k+1) * retObj['last-draw-height'] / retObj['draw-number']) / 100;
         retObj[`draw-${k}-sideways`] = defaultObject.hasOwnProperty(`draw-${k}-sideways`) ? defaultObject[`draw-${k}-sideways`] : Math.round(100 * (k+1) * retObj['climber-sideways'] / (retObj['draw-number'] + 1)) / 100;
+      }
+    } else if ((SETUP_MASK_STEPS.order[i] === 'distance-setup') && (retObj['draw-number'] > 0) && (!retObj.hasOwnProperty('draw-0-wall-distance'))) {
+      for (let k = 0; k < retObj['draw-number']; k++) {
+        retObj[`draw-${k}-wall-distance`] = defaultObject.hasOwnProperty(`draw-${k}-wall-distance`) ? defaultObject[`draw-${k}-wall-distance`] : 0.1;
       }
     }
   }

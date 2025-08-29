@@ -24,6 +24,7 @@
  * @property {number} [force] the running maximal force (in Newton) applied to the body (stretching force in case of a rope)
  * @property {number} [climberStretching] the running maximal stretching force (in Newton) at the climber's end of the rope
  * @property {number} [belayerStretching] the running maximal stretching force (in Newton) at the belayer's end of the rope
+ * @property {number} [forceAvgWindow] the length of the force averaging window in seconds, if the maximum force reported is taken from an averaged force value
  */
 
 /**
@@ -806,6 +807,8 @@ class Body {
     this.frictionCoefficient = 0.125;
     /** @type {number} running maximum of the force (in Newton) which the body has been subjected to (forces are averaged over small time frames for more stability) */
     this.maxForce = 0;
+    /** @type {number} running maximum speed (in m/s) of the body */
+    this.maxSpeed = 0;
     /** @type {number} current force (in Newton) which the body is subjected to, averaged over a small time frame */
     this.currentAveragedForce = 0;
     /** @type {number[]} forces (in Newton) which the body has been subjected to within the current averaging window */
@@ -885,6 +888,7 @@ class Body {
     // update current averaged force and the maximum force the body has been subjected to
     this.currentAveragedForce = (this.runningAvgForce - (this.runningTimeSum - this.forceAvgWindow) * this.runningForces[0]) / this.forceAvgWindow;
     this.maxForce = Math.max(this.maxForce, this.currentAveragedForce);
+    this.maxSpeed = Math.max(this.maxSpeed, this.velocity.norm());
     if (clearForces) this.clearForces();
     if (!applyChanges)
       return this.velocity.times(delta); // return displacement if the displacement was not actually applied
@@ -948,6 +952,11 @@ class Body {
       },
       speed: {
         current: this.velocity.norm()
+      },
+      runningMaxima: {
+        speed: this.maxSpeed,
+        force: this.maxForce,
+        forceAvgWindow: this.forceAvgWindow
       }
     };
   }

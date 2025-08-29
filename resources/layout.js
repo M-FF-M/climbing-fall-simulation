@@ -233,6 +233,16 @@ class FallSimulationLayout {
       versionDate: GLOBALS.versionDate
     };
 
+    const getDeleteButton = () => { // create a delete button
+      const button = document.createElement('button');
+      button.setAttribute('type', 'button');
+      button.classList.add('material-symbols-outlined');
+      button.classList.add('icon-button');
+      button.textContent = 'delete_forever';
+      button.setAttribute('title', 'Delete forever (cannot be undone)');
+      return button;
+    };
+
     const updatePhysicsStepSizeHint = () => { // update hint for step size of physics engine
       if (document.getElementById('physics-step-size-info') !== null) {
         const ropeSegments = GLOBALS.ropeSegmentNum;
@@ -312,7 +322,7 @@ class FallSimulationLayout {
                   const td = document.createElement('td');
                   td.setAttribute('colspan', '2');
                   td.classList.add('fullwidth-text');
-                  td.textContent = 'There is nothing to do in this step, as you specified that no draws have been clipped.';
+                  td.textContent = 'There is nothing to do here, as you specified that no draws have been clipped.';
                   tr.appendChild(td);
                   table.appendChild(tr);
 
@@ -377,6 +387,51 @@ class FallSimulationLayout {
 
               } else if (this.stepFormTypes[this.currentSetupStep] === 'physics-setup') {
                 (drawPreview(this.currentSetupStep))({}); // to update physics step size hint
+
+              } else if (this.stepFormTypes[this.currentSetupStep] === 'distance-setup') { // distance setup step
+                const numDraws = this.setupMaskSettings['draw-number'];
+                const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
+                table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1],
+                  table.getElementsByTagName('tr')[2], table.getElementsByTagName('tr')[3], table.getElementsByTagName('tr')[4]);
+                table.style.marginBottom = '1em';
+
+                if (numDraws == 0) {
+                  const tr = document.createElement('tr');
+                  const td = document.createElement('td');
+                  td.setAttribute('colspan', '2');
+                  td.classList.add('fullwidth-text');
+                  td.textContent = 'There is nothing to do here, as you specified that no draws have been clipped.';
+                  tr.appendChild(td);
+                  table.appendChild(tr);
+
+                } else {
+                  for (let i = 0; i < numDraws; i++) {
+                    const tr = document.createElement('tr');
+                    const leftTd = document.createElement('td');
+                    const label = document.createElement('label');
+                    label.setAttribute('for', `draw-${i}-wall-distance`);
+                    label.textContent = `Wall distance of draw ${(i+1)}:`;
+                    leftTd.appendChild(label);
+                    const rightTd = document.createElement('td');
+                    const input = document.createElement('input');
+                    input.setAttribute('id', `draw-${i}-wall-distance`);
+                    input.setAttribute('type', 'number');
+                    input.setAttribute('min', '0.01');
+                    input.setAttribute('max', '10');
+                    input.setAttribute('step', '0.01');
+                    input.value = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-wall-distance`)
+                      ? this.setupMaskDefaultSettings[`draw-${i}-wall-distance`] : 0.1;
+                    input.defaultValue = this.setupMaskDefaultSettings.hasOwnProperty(`draw-${i}-wall-distance`)
+                      ? this.setupMaskDefaultSettings[`draw-${i}-wall-distance`] : 0.1;
+                    const units = document.createElement('span');
+                    units.textContent = ' meters';
+                    rightTd.appendChild(input);
+                    rightTd.appendChild(units);
+                    tr.appendChild(leftTd);
+                    tr.appendChild(rightTd);
+                    table.appendChild(tr);
+                  }
+                }
               }
 
               this.stepElements[this.currentSetupStep].getElementsByClassName('step-body')[0].style.display = 'block';
@@ -426,7 +481,7 @@ class FallSimulationLayout {
           if (savedResults.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.setAttribute('colspan', '2');
+            td.setAttribute('colspan', '3');
             td.classList.add('fullwidth-text');
             td.textContent = `No ${automatic ? 'automatically ' : ''}saved simulation results are available.`;
             tr.appendChild(td);
@@ -444,6 +499,7 @@ class FallSimulationLayout {
                 minute: "2-digit"
               })} (${numToUnitStr(JSON.stringify(res).length, 'Byte', 1)})`;
               const loadButton = document.createElement('button');
+              loadButton.setAttribute('type', 'button');
               loadButton.textContent = 'Load';
               loadButton.addEventListener('click', ((config, res, userName) => {
                 return (evt) => {
@@ -457,12 +513,18 @@ class FallSimulationLayout {
                   else
                     this.simResUserSaved = userName;
                   this.progressInfoText.textContent = `Simulation completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
+                  this.prepareAndStartSimulation(false);
                   this.setupSimulationResultLoop(res, config['frame-rate']);
                 };
               })(res.configuration, res.result, automatic ? null : res.name))
               rightTd.appendChild(loadButton);
               tr.appendChild(leftTd);
               tr.appendChild(rightTd);
+              const delTd = document.createElement('td');
+              const deleteButton = getDeleteButton();
+              delTd.appendChild(deleteButton);
+              // TODO: delete button action
+              tr.appendChild(delTd);
               table.appendChild(tr);
             }
           }
@@ -473,6 +535,31 @@ class FallSimulationLayout {
         const savedTable = document.getElementById('load-saved-results');
         const savedResults = SimulationStorageManager.savedResults;
         createSavedResultsTable(savedTable, savedResults);
+
+        document.getElementById('simulation-file-loader').addEventListener('change', async (e) => { // initialize file loader
+          const file = e.target.files && e.target.files[0];
+          if (!file) return; // user canceled
+          document.getElementById('simulation-file-loader-text').textContent = 'Please wait, loading…';
+          try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            for (const snapshot of data.result) {
+              for (let i = 0; i < snapshot.bodies.length; i++)
+                snapshot.bodies[i] = deserializeObjectSnapshot(snapshot.bodies[i]);
+            }
+            this.setupMaskSettings = data.configuration;
+            this.setupSimulationRunningLayout();
+            this.simulationDuration = this.setupMaskSettings['simulation-duration'];
+            this.simResAutoSaved = false;
+            this.simResUserSaved = null;
+            this.progressInfoText.textContent = `Simulation completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
+            this.prepareAndStartSimulation(false);
+            this.setupSimulationResultLoop(data.result, data.configuration['frame-rate']);
+          } catch (e) {
+            console.error('Failed to read/parse JSON:', e);
+            document.getElementById('simulation-file-loader-text').textContent = 'Failed to parse file.';
+          }
+        });
 
       } else if (this.stepFormTypes[i] === 'rope-setup') { // setup mask to input rope manufacturer data
         const manufacturerDataInput = ((idx) => {
@@ -526,12 +613,15 @@ class FallSimulationLayout {
   prepareAndStartSimulation(startSimulation = true) {
     clearPhysicsWorld();
 
+    const belayerWallDistance = this.setupMaskSettings.hasOwnProperty('belayer-wall-distance') ? this.setupMaskSettings['belayer-wall-distance'] : 0.5;
+    const climberWallDistance = this.setupMaskSettings.hasOwnProperty('climber-wall-distance') ? this.setupMaskSettings['climber-wall-distance'] : 0.3;
+
     GLOBALS.wallAngle = this.setupMaskSettings['wall-angle']; // overhanging degrees
 
     GLOBALS.startHeight = this.setupMaskSettings['climber-height']; // height of climber above ground / belay
     GLOBALS.climberMass = this.setupMaskSettings['climber-weight'];
     GLOBALS.climber = new Body(
-      GLOBALS.startHeight * Math.tan(Math.PI * GLOBALS.wallAngle / 180) - 0.2 - 0.01 + 0.02 * Math.random(),
+      GLOBALS.startHeight * Math.tan(Math.PI * GLOBALS.wallAngle / 180) + (climberWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(),
       GLOBALS.startHeight,
       this.setupMaskSettings['climber-sideways'] - 0.01 + 0.02 * Math.random(),
       GLOBALS.climberMass,
@@ -550,8 +640,9 @@ class FallSimulationLayout {
     const deflectionPoints = [];
     let lastPos = GLOBALS.anchor.pos;
     for (let i = 0; i < this.setupMaskSettings['draw-number']; i++) {
+      const drawWallDistance = this.setupMaskSettings.hasOwnProperty(`draw-${i}-wall-distance`) ? this.setupMaskSettings[`draw-${i}-wall-distance`] : 0.1;
       const nDeflPt = new Body(
-        this.setupMaskSettings[`draw-${i}-height`] * Math.tan(Math.PI * GLOBALS.wallAngle / 180) - 0.4 - 0.01 + 0.02 * Math.random(), // x coordinate
+        this.setupMaskSettings[`draw-${i}-height`] * Math.tan(Math.PI * GLOBALS.wallAngle / 180) + (drawWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(), // x coordinate
         this.setupMaskSettings[`draw-${i}-height`], // y coordinate
         this.setupMaskSettings[`draw-${i}-sideways`] - 0.01 + 0.02 * Math.random(), // z coordinate
         0,
@@ -583,9 +674,17 @@ class FallSimulationLayout {
     }, ...deflectionPoints);
     GLOBALS.rope.drawingColor = new Color(241, 160, 45);
     
-    addWorldBarrier(new V(Math.cos(Math.PI * GLOBALS.wallAngle / 180), -Math.sin(Math.PI * GLOBALS.wallAngle / 180), 0), new V(-0.5, 0, 0), 'wall');
+    addWorldBarrier(new V(Math.cos(Math.PI * GLOBALS.wallAngle / 180), -Math.sin(Math.PI * GLOBALS.wallAngle / 180), 0), new V(-belayerWallDistance, 0, 0), 'wall');
     if (this.setupMaskSettings['ground-present'])
       addWorldBarrier(new V(0, 1, 0), new V(0, this.setupMaskSettings['ground-level'], 0), 'floor');
+
+    if (GLOBALS.startHeight > GLOBALS.lastDrawHeight)
+      GLOBALS.fallFactor = 2 * (GLOBALS.startHeight - GLOBALS.lastDrawHeight) / GLOBALS.ropeLength;
+    else
+      GLOBALS.fallFactor = 0;
+
+    GLOBALS.gravityOnClimber = GRAVITY_OF_EARTH * GLOBALS.climberMass;
+    GLOBALS.gravityOnBelayer = GRAVITY_OF_EARTH * GLOBALS.anchorMass;
 
     GLOBALS.bodies = [
       ...deflectionPoints,
@@ -596,6 +695,9 @@ class FallSimulationLayout {
 
     GLOBALS.maxStep = this.setupMaskSettings['physics-step-size'] / 1000;
 
+    document.getElementById('gravity-force-climber').textContent = numToUnitStr(GLOBALS.gravityOnClimber, 'N', 2);
+    document.getElementById('gravity-force-belayer').textContent = numToUnitStr(GLOBALS.gravityOnBelayer, 'N', 2);
+    
     if (startSimulation) {
       const FPS = this.setupMaskSettings['frame-rate'];
       const targetTime = this.setupMaskSettings['simulation-duration'];
@@ -661,6 +763,7 @@ class FallSimulationLayout {
     this.adjustPanelNumber(2, 3, true);
 
     this.previousFrameBtn = document.createElement('button');
+    this.previousFrameBtn.setAttribute('type', 'button');
     this.previousFrameBtn.classList.add('material-symbols-outlined');
     this.previousFrameBtn.classList.add('icon-button');
     this.previousFrameBtn.textContent = 'skip_previous';
@@ -672,6 +775,7 @@ class FallSimulationLayout {
       this.drawSnapshotAtIndex(this.lastFrameDrawn);
     });
     this.nextFrameBtn = document.createElement('button');
+    this.nextFrameBtn.setAttribute('type', 'button');
     this.nextFrameBtn.classList.add('material-symbols-outlined');
     this.nextFrameBtn.classList.add('icon-button');
     this.nextFrameBtn.textContent = 'skip_next';
@@ -683,6 +787,7 @@ class FallSimulationLayout {
       this.drawSnapshotAtIndex(this.lastFrameDrawn);
     });
     this.playPauseBtn = document.createElement('button');
+    this.playPauseBtn.setAttribute('type', 'button');
     this.playPauseBtn.classList.add('material-symbols-outlined');
     this.playPauseBtn.classList.add('icon-button');
     this.playPauseBtn.textContent = 'pause'; // or play_arrow
@@ -721,11 +826,13 @@ class FallSimulationLayout {
     this.playbackControls.appendChild(this.nextFrameBtn);
 
     this.saveAsBtn = document.createElement('button');
+    this.saveAsBtn.setAttribute('type', 'button');
     this.saveAsBtn.classList.add('material-symbols-outlined');
     this.saveAsBtn.classList.add('icon-button');
     this.saveAsBtn.textContent = 'save_as';
     // TODO: save as menu
     this.settingsBtn = document.createElement('button');
+    this.settingsBtn.setAttribute('type', 'button');
     this.settingsBtn.classList.add('material-symbols-outlined');
     this.settingsBtn.classList.add('icon-button');
     this.settingsBtn.textContent = 'settings';
@@ -831,6 +938,30 @@ class FallSimulationLayout {
     this.snapshotFPS = FPS;
     this.setupSimulationResultLayout();
     
+    const lastSnapshot = this.snapshots[this.snapshots.length - 1];
+    for (const bodySnap of lastSnapshot.bodies) {
+      if (!bodySnap.hasOwnProperty('runningMaxima')) continue;
+      if (bodySnap.name === 'climber') {
+        document.getElementById('peak-force-climber').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
+        document.getElementById('peak-speed-climber').textContent = numToUnitStr(bodySnap.runningMaxima.speed * 3600, 'm/h', 2);
+        if (bodySnap.runningMaxima.hasOwnProperty('forceAvgWindow'))
+          document.getElementById('peak-force-climber-hint').textContent = ` (averaged over ${numToUnitStr(bodySnap.runningMaxima.forceAvgWindow, 's', 1)})`;
+      } else if (bodySnap.name === 'belayer') {
+        document.getElementById('peak-force-belayer').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
+        document.getElementById('peak-speed-belayer').textContent = numToUnitStr(bodySnap.runningMaxima.speed * 3600, 'm/h', 2);
+        if (bodySnap.runningMaxima.hasOwnProperty('forceAvgWindow'))
+          document.getElementById('peak-force-belayer-hint').textContent = ` (averaged over ${numToUnitStr(bodySnap.runningMaxima.forceAvgWindow, 's', 1)})`;
+      } else if (bodySnap.name === 'rope') {
+        document.getElementById('peak-impact-climber').textContent = numToUnitStr(bodySnap.runningMaxima.climberStretching, 'N', 2);
+        document.getElementById('peak-impact-belayer').textContent = numToUnitStr(bodySnap.runningMaxima.belayerStretching, 'N', 2);
+      } else if (bodySnap.name === 'quickdraw') {
+        document.getElementById('peak-force-draw').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
+        if (bodySnap.runningMaxima.hasOwnProperty('forceAvgWindow'))
+          document.getElementById('peak-force-draw-hint').textContent = ` (averaged over ${numToUnitStr(bodySnap.runningMaxima.forceAvgWindow, 's', 1)})`;
+      }
+    }
+    document.getElementById('fall-factor').textContent = numToStr(GLOBALS.fallFactor);
+
     this.lastFrameGlobTime = (new Date()).getTime() / 1000;
     this.lastFrameSimTime = 0;
     window.requestAnimationFrame(() => this.playInLoop());
@@ -876,6 +1007,22 @@ class FallSimulationLayout {
    */
   drawSnapshotAtIndex(idx) {
     const cSnapshot = this.snapshots[idx];
+    document.getElementById('menu-stats-time').textContent = `${numToStr(cSnapshot.time, 2, 5, 2, true)} s`;
+    for (const bodySnap of cSnapshot.bodies) {
+      if (!bodySnap.hasOwnProperty('runningMaxima')) continue;
+      if (bodySnap.name === 'climber') {
+        document.getElementById('peak-force-climber-running').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
+        document.getElementById('peak-speed-climber-running').textContent = numToUnitStr(bodySnap.runningMaxima.speed * 3600, 'm/h', 2);
+      } else if (bodySnap.name === 'belayer') {
+        document.getElementById('peak-force-belayer-running').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
+        document.getElementById('peak-speed-belayer-running').textContent = numToUnitStr(bodySnap.runningMaxima.speed * 3600, 'm/h', 2);
+      } else if (bodySnap.name === 'rope') {
+        document.getElementById('peak-impact-climber-running').textContent = numToUnitStr(bodySnap.runningMaxima.climberStretching, 'N', 2);
+        document.getElementById('peak-impact-belayer-running').textContent = numToUnitStr(bodySnap.runningMaxima.belayerStretching, 'N', 2);
+      } else if (bodySnap.name === 'quickdraw') {
+        document.getElementById('peak-force-draw-running').textContent = numToUnitStr(bodySnap.runningMaxima.force, 'N', 2);
+      }
+    }
     for (const graphicsManager of this.graphicsManagers)
       graphicsManager.drawSnapshot(cSnapshot.bodies, cSnapshot.time);
     for (const graphCan of this.graphCanvases) {

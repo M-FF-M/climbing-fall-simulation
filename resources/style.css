@@ -140,7 +140,7 @@ input[type=button].icon-button, button.icon-button {
   padding: 0.1em;
 }
 
-select, input[type=text], input[type=number] {
+select, input[type=text], input[type=number], input[type=file] {
   font-family: inherit;
   font-size: 1em;
   padding-left: 0.5em;
@@ -240,8 +240,24 @@ select.size-to-icon-button {
   text-align: right;
 }
 
-.step-form-table tr:not(.additional-input-info) td.centered {
+.step-form-table tr:not(.additional-input-info) td.centered, .centered {
   text-align: center;
+}
+
+#menu-stats-table td:first-child:not(.centered) {
+  text-align: right;
+}
+
+#menu-stats-table td:not(:first-child) {
+  text-align: center;
+}
+
+#menu-stats-table td:first-child {
+  padding-right: 0.5em;
+}
+
+#menu-stats-table tr:not(:last-child) td {
+  border-bottom: 1px solid #ccc;
 }
 
 .material-symbols-outlined.inline-icon {

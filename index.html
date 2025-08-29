@@ -42,15 +42,28 @@
             <tr class="additional-input-info">
               <td colspan="2">
                 <span class="info-icon material-symbols-outlined">info</span>
-                Saving of simulation results or simulation configurations is currently <b>not yet supported</b>.
-                However, automatically saved simulation results can be loaded here.
+                Here, you can load saved simulation results. Saving and loading only the simulation configurations is currently not yet supported.
+              </td>
+            </tr>
+            <tr>
+              <td>
+                Load from file:
+              </td>
+              <td>
+                <input id="simulation-file-loader" type="file" accept=".json,application/json" />
+              </td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                <span id="simulation-file-loader-text">Load simulation result from a JSON file that you saved on your computer&rsquo;s disk.</span>
               </td>
             </tr>
           </table>
 
           <table class="step-form-table highlighted-table" id="load-auto-saved-results">
             <tr>
-              <td colspan="2" class="fullwidth-text">
+              <td colspan="3" class="fullwidth-text">
                 Automatically saved simulation results
               </td>
             </tr>
@@ -58,7 +71,7 @@
 
           <table class="step-form-table highlighted-table" id="load-saved-results">
             <tr>
-              <td colspan="2" class="fullwidth-text">
+              <td colspan="3" class="fullwidth-text">
                 Simulation results saved by the user
               </td>
             </tr>
@@ -252,11 +265,55 @@
               <td colspan="2">
                 <span class="info-icon material-symbols-outlined">info</span>
                 Below, you can change the height of every quick draw (or other protection point).
-                The draws are numbered from the belayer's (or fixed anchor's) side, starting with 1, in ascending
-                order up to the climber's side. Heights may be between -2 and 50 meters, and must be above the ground level.
+                The draws are numbered from the belayer&rsquo;s (or fixed anchor&rsquo;s) side, starting with 1, in ascending
+                order up to the climber&rsquo;s side. Heights may be between -2 and 50 meters, and must be above the ground level.
                 Next to the height, you can also specify sideways shifts between -25 and 25 meters. These correspond to the
                 number of meters the corresponding draw is placed to the left (negative value) or to the right (positive value)
                 of the belayer (or fixed anchor).
+              </td>
+            </tr>
+          </table>
+
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="setup-step" id="distance-setup">
+      <div class="step-header"><span class="step-header-num">1.</span> Distances to the wall <span class="inline-icon material-symbols-outlined step-done">check</span></div>
+
+      <div class="step-body">
+        <form class="step-form">
+          <button class="back-button" type="button">Back</button> <button type="reset">Reset</button> <button type="submit">Next</button>
+
+          <table class="step-form-table">
+            <tr>
+              <td><label for="belayer-wall-distance">Distance of belayer to wall:</label></td>
+              <td><input type="number" id="belayer-wall-distance" min="0.01" max="10" value="0.5" step="0.01" /> meters</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number between 0.01 and 10. This specifies the distance of the belayer to the wall, measured parallel to the
+                ground (that is, along a horizontal line).
+              </td>
+            </tr>
+            <tr>
+              <td><label for="climber-wall-distance">Distance of climber to wall:</label></td>
+              <td><input type="number" id="climber-wall-distance" min="0.01" max="10" value="0.3" step="0.01" /> meters</td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Supply a number between 0.01 and 10. This specifies the distance of the climber to the wall, measured parallel to the
+                ground (that is, along a horizontal line).
+              </td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Below, you can change the distance of every quick draw (or other protection point) to the wall.
+                The distance may be between 0.01 and 10 and are measured parallel to the ground (that is, along a horizontal line)
               </td>
             </tr>
           </table>
@@ -457,7 +514,71 @@
     <div class="menu-container">
       <div class="menu-header"><span>Menu</span><button id="close-menu" class="icon-button material-symbols-outlined" type="button">close</button></div>
 
-      <div class="menu-section"><button id="change-views" type="button">Change displayed graphs / views</button></div>
+      <div class="menu-section" id="menu-stats">
+        <span class="menu-section-header">Key statistics</span><br />
+        <table id="menu-stats-table">
+          <tr>
+            <td></td>
+            <td class="centered">Overall</td>
+            <td class="centered">Running maximum at time <span id="menu-stats-time"></span></td>
+          </tr>
+          <tr>
+            <td>(Approximate) fall factor</td>
+            <td id="fall-factor"></td>
+            <td id="fall-factor-running"></td>
+          </tr>
+          <tr>
+            <td>Peak impact force (climber&rsquo;s side)</td>
+            <td id="peak-impact-climber"></td>
+            <td id="peak-impact-climber-running"></td>
+          </tr>
+          <tr>
+            <td>Peak impact force (belayer&rsquo;s side)</td>
+            <td id="peak-impact-belayer"></td>
+            <td id="peak-impact-belayer-running"></td>
+          </tr>
+          <tr>
+            <td>Peak force on climber<span id="peak-force-climber-hint"></span></td>
+            <td id="peak-force-climber"></td>
+            <td id="peak-force-climber-running"></td>
+          </tr>
+          <tr>
+            <td>Gravity on climber</td>
+            <td id="gravity-force-climber"></td>
+            <td id="gravity-force-climber-running"></td>
+          </tr>
+          <tr>
+            <td>Peak force on belayer<span id="peak-force-belayer-hint"></span></td>
+            <td id="peak-force-belayer"></td>
+            <td id="peak-force-belayer-running"></td>
+          </tr>
+          <tr>
+            <td>Gravity on belayer</td>
+            <td id="gravity-force-belayer"></td>
+            <td id="gravity-force-belayer-running"></td>
+          </tr>
+          <tr>
+            <td>Peak force on topmost draw<span id="peak-force-draw-hint"></span></td>
+            <td id="peak-force-draw"></td>
+            <td id="peak-force-draw-running"></td>
+          </tr>
+          <tr>
+            <td>Peak speed of climber</td>
+            <td id="peak-speed-climber"></td>
+            <td id="peak-speed-climber-running"></td>
+          </tr>
+          <tr>
+            <td>Peak speed of belayer</td>
+            <td id="peak-speed-belayer"></td>
+            <td id="peak-speed-belayer-running"></td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="menu-section">
+        <span class="menu-section-header">View settings</span><br />
+        <button id="change-views" type="button">Change displayed graphs / views</button>
+      </div>
 
       <div class="menu-section" id="menu-save">
         <span class="menu-section-header">Save simulation</span><br />

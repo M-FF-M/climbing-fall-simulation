@@ -81,7 +81,7 @@ function initializeMenu(layoutManager) {
     document.getElementById('saved-automatically').textContent = 'This simulation has been saved automatically. However, note that only three automatically saved simulation results are stored at any time.';
   else {
     if (layoutManager.simResUserSaved === null || typeof layoutManager.simResUserSaved === 'undefined')
-      document.getElementById('saved-automatically').textContent = 'This simulation has not been saved automatically due to the large amount of generated data. You can save it manually.';
+      document.getElementById('saved-automatically').textContent = 'This simulation has not been saved automatically (either due to the large amount of generated data, or because you loaded if from disk). You can save it manually.';
     else
       document.getElementById('saved-automatically').textContent = 'This simulation has not been saved automatically, but it has already been saved manually.';
   }
@@ -91,14 +91,16 @@ function initializeMenu(layoutManager) {
   });
 
   if (layoutManager.simResUserSaved === null || typeof layoutManager.simResUserSaved === 'undefined')
-    document.getElementById('save-in-browser-hint').textContent = 'This simulation has not yet been saved manually.';
+    document.getElementById('save-in-browser-hint').textContent = 'This simulation has not yet been saved manually in the browser.';
   else
     document.getElementById('save-in-browser-hint').textContent = `This simulation has been saved in the browser under the name ${layoutManager.simResUserSaved}.`;
 
   document.getElementById('save-in-browser').addEventListener('click', () => {
     if (document.getElementById('save-in-browser-name').value !== '') {
-      SimulationStorageManager.saveResultInBrowser(document.getElementById('save-in-browser-name').value, layoutManager.setupMaskSettings, layoutManager.snapshots);
-      document.getElementById('save-in-browser-hint').textContent = `This simulation has been saved in the browser under the name ${document.getElementById('save-in-browser-name').value}.`;
+      if (SimulationStorageManager.saveResultInBrowser(document.getElementById('save-in-browser-name').value, layoutManager.setupMaskSettings, layoutManager.snapshots))
+        document.getElementById('save-in-browser-hint').textContent = `This simulation has been saved in the browser under the name ${document.getElementById('save-in-browser-name').value}.`;
+      else
+        document.getElementById('save-in-browser-hint').textContent = 'Saving failed. This is probably due to the storage limit (set by the browser) being exceeded. Try saving the result on your disk instead.';
     } else {
       alert('Please enter a name for saving (so that you can later identify the simulation again).');
     }

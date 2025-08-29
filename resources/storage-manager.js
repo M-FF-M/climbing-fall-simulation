@@ -50,7 +50,7 @@ class SimulationStorageManager {
   }
 
   /**
-   * Auto save a simulation result (if the string length in serialized form is at most 200MB (approximately)).
+   * Auto save a simulation result (if the string length in serialized form is at most 1.5MB (approximately)).
    * This method automatically keeps only the last three simulation results that have been saved automatically, and discards older auto-saved results.
    * @param {object} configuration the simulation configuration object
    * @param {{time: number, bodies: ObjectSnapshot[]}[]} result the simulation result
@@ -63,13 +63,17 @@ class SimulationStorageManager {
       result
     };
     const autoSaveString = JSON.stringify(autoSaveObject);
-    if (autoSaveString.length <= 200 * 1024 * 1024) { // string length at most 200MB (assuming every character occupies only a single byte)
+    if (autoSaveString.length <= 1.5 * 1024 * 1024) { // string length at most 1.5MB (assuming every character occupies only a single byte)
       const currentAutoSavedResults = this.autoSavedResults;
       if (currentAutoSavedResults.length == 3)
         currentAutoSavedResults.pop();
       currentAutoSavedResults.unshift(autoSaveObject);
-      localStorage.setItem('auto-saved-results', JSON.stringify(currentAutoSavedResults));
-      return true;
+      try {
+        localStorage.setItem('auto-saved-results', JSON.stringify(currentAutoSavedResults));
+        return true;
+      } catch (e) {
+        return false;
+      }
     } else {
       return false;
     }
@@ -80,6 +84,7 @@ class SimulationStorageManager {
    * @param {string} name the name under which the result should be saved
    * @param {object} configuration the simulation configuration object
    * @param {{time: number, bodies: ObjectSnapshot[]}[]} result the simulation result
+   * @return {boolean} whether saving was successful (can fail if the local storage quota is exceeded)
    */
   static saveResultInBrowser(name, configuration, result) {
     const saveObject = {
@@ -90,7 +95,12 @@ class SimulationStorageManager {
     };
     const currentSavedResults = this.savedResults;
     currentSavedResults.unshift(saveObject);
-    localStorage.setItem('saved-results', JSON.stringify(currentSavedResults));
+    try {
+      localStorage.setItem('saved-results', JSON.stringify(currentSavedResults));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
