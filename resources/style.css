@@ -43,8 +43,12 @@ body > #setup-mask {
 .left-head {
   padding: 1em;
   background: #f0f0f0;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 0.0625em solid #ccc;
   flex: 0 0 auto; /* height is content‑driven */
+}
+.save-space .left-head {
+  padding-top: 0.4em;
+  padding-bottom: 0.4em;
 }
 .left-body {
   flex: 1 1 auto;  /* fill remaining height */
@@ -55,7 +59,7 @@ body > #setup-mask {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 0.0625em solid #e0e0e0;
 }
 .left-body:last-child {
   border-bottom: none;
@@ -67,7 +71,7 @@ body > #setup-mask {
 }
 .section {
   flex: 1 1 auto;
-  border-top: 1px solid #e0e0e0;
+  border-top: 0.0625em solid #e0e0e0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -82,6 +86,10 @@ body > #setup-mask {
   border-top: none;
   padding: 0.5em;
 }
+.save-space .section:first-child {
+  padding-top: 0.3em;
+  padding-bottom: 0.3em;
+}
 
 /* =====  Resizer bar  ===== */
 .resizer {
@@ -94,31 +102,56 @@ body > #setup-mask {
   align-items: center;
   justify-content: center;
 }
+
 .split-vertical .resizer {
-  width: 0.6em;
+  width: 0.4em;
   height: 100%;
-  max-width: 0.6em;
+  max-width: 0.4em;
   max-height: 100%;
+  min-width: 0.4em;
+  min-height: 100%;
   cursor: col-resize;
 }
+
 /* When layout becomes horizontal the bar turns horizontal */
 .split-horizontal .resizer {
   width: 100%;
-  height: 0.6em;
+  height: 0.4em;
   max-width: 100%;
-  max-height: 0.6em;
+  max-height: 0.4em;
+  min-width: 100%;
+  min-height: 0.4em;
   cursor: row-resize;
 }
+
 .resizer-bullets {
   font-size: 0.7em;
   color: white;
+  opacity: 0.5;
+}
+
+.split-vertical .resizer-bullets {
   writing-mode: vertical-rl;
   text-orientation: sideways;
-  opacity: 0.5;
+}
+
+.split-horizontal .resizer-bullets {
+  writing-mode: horizontal-tb;
+  text-orientation: upright;
 }
 
 .resizer:hover .resizer-bullets {
   opacity: 1;
+}
+
+@media (pointer: coarse) {
+.split-vertical .resizer { width: 1em; max-width: 1em; min-width: 1em; }
+.split-horizontal .resizer { height: 1em; max-height: 1em; min-height: 1em; }
+}
+
+@media (hover: none) {
+.split-vertical .resizer { width: 1em; max-width: 1em; min-width: 1em; }
+.split-horizontal .resizer { height: 1em; max-height: 1em; min-height: 1em; }
 }
 
 .material-symbols-outlined {
@@ -214,7 +247,7 @@ select.size-to-icon-button {
 }
 
 .highlighted-table tr:not(:last-child) td {
-  border-bottom: 1px solid #ccc;
+  border-bottom: 0.0625em solid #ccc;
 }
 
 .step-body {
@@ -257,7 +290,7 @@ select.size-to-icon-button {
 }
 
 #menu-stats-table tr:not(:last-child) td {
-  border-bottom: 1px solid #ccc;
+  border-bottom: 0.0625em solid #ccc;
 }
 
 .material-symbols-outlined.inline-icon {
@@ -280,8 +313,8 @@ select.size-to-icon-button {
   white-space: nowrap;
   margin-left: 0.3em;
   margin-right: 0.3em;
-  margin-top: 0.5px;
-  margin-bottom: 0.5px;
+  margin-top: 0.03125em;
+  margin-bottom: 0.03125em;
   padding-left: 0.3em;
   padding-right: 0.3em;
   padding-top: 0.1em;

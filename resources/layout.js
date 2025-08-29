@@ -12,8 +12,21 @@ class FallSimulationLayout {
     /** @type {HTMLDivElement} overall layout container */
     this.flexContainer = document.createElement('div');
     this.flexContainer.setAttribute('id', 'flex-container');
-    if (window.innerWidth / window.innerHeight < 0.8) this.flexContainer.classList.add('split-horizontal');
-    else this.flexContainer.classList.add('split-vertical');
+    /** @type {boolean} whether saving as much space as possible is necessary (due to a small display) */
+    this.saveSpace = false;
+    if (window.innerWidth / window.innerHeight < 0.8) {
+      this.flexContainer.classList.add('split-horizontal');
+      if (window.innerHeight <= 950) {
+        document.body.classList.add('save-space');
+        this.saveSpace = true;
+      }
+    } else {
+      this.flexContainer.classList.add('split-vertical');
+      if (window.innerHeight <= 600) {
+        document.body.classList.add('save-space');
+        this.saveSpace = true;
+      }
+    }
     /** @type {HTMLDivElement} left (or top) panel */
     this.leftPanel = document.createElement('div');
     this.leftPanel.classList.add('panel');
@@ -108,10 +121,24 @@ class FallSimulationLayout {
           this.flexContainer.classList.remove('split-vertical');
           this.flexContainer.classList.add('split-horizontal');
         }
+        if (window.innerHeight <= 950) {
+          document.body.classList.add('save-space');
+          this.saveSpace = true;
+        } else {
+          document.body.classList.remove('save-space');
+          this.saveSpace = false;
+        }
       } else {
         if (this.flexContainer.classList.contains('split-horizontal')) {
           this.flexContainer.classList.remove('split-horizontal');
           this.flexContainer.classList.add('split-vertical');
+        }
+        if (window.innerHeight <= 600) {
+          document.body.classList.add('save-space');
+          this.saveSpace = true;
+        } else {
+          document.body.classList.remove('save-space');
+          this.saveSpace = false;
         }
       }
     });
@@ -186,11 +213,13 @@ class FallSimulationLayout {
       for (let i = 0; i < this.bodyPanels.length; i++) {
         this.bodyPanels[i].style.overflow = 'visible';
         this.bodyPanels[i].style.justifyContent = 'center';
+        this.bodyPanels[i].style.alignItems = 'center';
         this.bodyPanels[i].style.contain = 'none';
       }
       for (let i = 1; i < this.rightSubpanels.length; i++) {
         this.rightSubpanels[i].style.overflow = 'visible';
         this.rightSubpanels[i].style.justifyContent = 'center';
+        this.rightSubpanels[i].style.alignItems = 'center';
         this.rightSubpanels[i].style.contain = 'none';
       }
     }
@@ -211,6 +240,7 @@ class FallSimulationLayout {
     this.bodyPanels[0].replaceChildren(this.setupMask);
     this.bodyPanels[0].style.overflow = 'auto';
     this.bodyPanels[0].style.justifyContent = 'start';
+    this.bodyPanels[0].style.alignItems = 'start';
     /** @type {object} an object with the current default setup settings */
     this.setupMaskDefaultSettings = { ...defaultSettings };
     delete this.setupMaskDefaultSettings['version'];
@@ -793,6 +823,7 @@ class FallSimulationLayout {
     this.previousFrameBtn.classList.add('material-symbols-outlined');
     this.previousFrameBtn.classList.add('icon-button');
     this.previousFrameBtn.textContent = 'skip_previous';
+    this.previousFrameBtn.setAttribute('title', 'Jump to previous frame');
     this.previousFrameBtn.addEventListener('click', () => {
       this.isPaused = true;
       this.playPauseBtn.textContent = 'play_arrow';
@@ -805,6 +836,7 @@ class FallSimulationLayout {
     this.nextFrameBtn.classList.add('material-symbols-outlined');
     this.nextFrameBtn.classList.add('icon-button');
     this.nextFrameBtn.textContent = 'skip_next';
+    this.nextFrameBtn.setAttribute('title', 'Jump to next frame');
     this.nextFrameBtn.addEventListener('click', () => {
       this.isPaused = true;
       this.playPauseBtn.textContent = 'play_arrow';
@@ -817,6 +849,7 @@ class FallSimulationLayout {
     this.playPauseBtn.classList.add('material-symbols-outlined');
     this.playPauseBtn.classList.add('icon-button');
     this.playPauseBtn.textContent = 'pause'; // or play_arrow
+    this.playPauseBtn.setAttribute('title', 'Play / pause');
     this.playPauseBtn.addEventListener('click', () => {
       this.isPaused = !this.isPaused;
       if (this.isPaused) {
@@ -829,6 +862,7 @@ class FallSimulationLayout {
     });
 
     this.selectPlaybackSpeed = document.createElement('select');
+    this.selectPlaybackSpeed.setAttribute('title', 'Select playback speed');
     const opt1 = document.createElement('option'); opt1.textContent = '1×'; opt1.setAttribute('value', '1'); opt1.setAttribute('selected', 'selected');
     const opt2 = document.createElement('option'); opt2.textContent = '0.5×'; opt2.setAttribute('value', '1/2');
     const opt3 = document.createElement('option'); opt3.textContent = '0.25×'; opt3.setAttribute('value', '1/4');
@@ -851,17 +885,21 @@ class FallSimulationLayout {
     this.playbackControls.appendChild(this.selectPlaybackSpeed);
     this.playbackControls.appendChild(this.nextFrameBtn);
 
-    this.saveAsBtn = document.createElement('button');
-    this.saveAsBtn.setAttribute('type', 'button');
-    this.saveAsBtn.classList.add('material-symbols-outlined');
-    this.saveAsBtn.classList.add('icon-button');
-    this.saveAsBtn.textContent = 'save_as';
-    // TODO: save as menu
+    this.saveBtn = document.createElement('button');
+    this.saveBtn.setAttribute('type', 'button');
+    this.saveBtn.classList.add('material-symbols-outlined');
+    this.saveBtn.classList.add('icon-button');
+    this.saveBtn.textContent = 'file_save';
+    this.saveBtn.setAttribute('title', 'Save simulation result on disk');
+    this.saveBtn.addEventListener('click', () => {
+      SimulationStorageManager.saveResultAsFile(this.setupMaskSettings, this.snapshots);
+    });
     this.settingsBtn = document.createElement('button');
     this.settingsBtn.setAttribute('type', 'button');
     this.settingsBtn.classList.add('material-symbols-outlined');
     this.settingsBtn.classList.add('icon-button');
     this.settingsBtn.textContent = 'settings';
+    this.settingsBtn.setAttribute('title', 'Settings & Menu');
     this.settingsBtn.addEventListener('click', () => {
       this.simulationMenu.style.display = 'block';
     });
@@ -871,7 +909,7 @@ class FallSimulationLayout {
     initializeMenu(this);
     const space = document.createElement('span'); space.style.display = 'inline-block'; space.style.width = '0.5em';
     this.playbackControls.appendChild(space);
-    this.playbackControls.appendChild(this.saveAsBtn);
+    this.playbackControls.appendChild(this.saveBtn);
     this.playbackControls.appendChild(this.settingsBtn);
     this.rightSubpanels[0].replaceChildren(this.playbackControls);
 

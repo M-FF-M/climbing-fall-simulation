@@ -14,8 +14,7 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 For version 1.0.0:
 - decrease the axis legend text size if it covers too much of the available space
-- adjust element sizes and numbers for small screens and touch devices
-- adjust slider thickness for touch devices
+- adjust panel numbers for small screens
 - publish version 1.0.0
 
 Additional improvements:
