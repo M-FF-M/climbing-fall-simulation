@@ -12,12 +12,6 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 ## To-Do List
 
-For version 1.0.0:
-- decrease the axis legend text size if it covers too much of the available space
-- adjust panel numbers for small screens
-- publish version 1.0.0
-
-Additional improvements:
 - improve slack handling
 - add some pre-calculated simulations
 - add option to only save the simulation configuration (without the result)
@@ -25,3 +19,4 @@ Additional improvements:
 - add possibility of a movable belayer attached to a fixed point
 - properly implement damping for the rope to get rid of the too-springy behavior
 - highlight key moments and calculate key forces (wall / ground impact, maximal force)
+- decrease the axis legend text size if it covers too much of the available space

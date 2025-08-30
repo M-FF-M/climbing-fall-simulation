@@ -12,19 +12,23 @@ class FallSimulationLayout {
     /** @type {HTMLDivElement} overall layout container */
     this.flexContainer = document.createElement('div');
     this.flexContainer.setAttribute('id', 'flex-container');
-    /** @type {boolean} whether saving as much space as possible is necessary (due to a small display) */
-    this.saveSpace = false;
+    /** @type {number} 0 = default setting, 1 = show less elements (because of a small display), 2 = show even less elements */
+    this.saveSpace = 0;
     if (window.innerWidth / window.innerHeight < 0.8) {
       this.flexContainer.classList.add('split-horizontal');
-      if (window.innerHeight <= 950) {
+      if (window.innerHeight <= 1000) {
         document.body.classList.add('save-space');
-        this.saveSpace = true;
+        this.saveSpace = 1;
+        if (window.innerHeight <= 750)
+          this.saveSpace = 2;
       }
     } else {
       this.flexContainer.classList.add('split-vertical');
       if (window.innerHeight <= 600) {
         document.body.classList.add('save-space');
-        this.saveSpace = true;
+        this.saveSpace = 1;
+        if (window.innerHeight <= 400)
+          this.saveSpace = 2;
       }
     }
     /** @type {HTMLDivElement} left (or top) panel */
@@ -121,12 +125,14 @@ class FallSimulationLayout {
           this.flexContainer.classList.remove('split-vertical');
           this.flexContainer.classList.add('split-horizontal');
         }
-        if (window.innerHeight <= 950) {
+        if (window.innerHeight <= 1000) {
           document.body.classList.add('save-space');
-          this.saveSpace = true;
+          this.saveSpace = 1;
+          if (window.innerHeight <= 750)
+            this.saveSpace = 2;
         } else {
           document.body.classList.remove('save-space');
-          this.saveSpace = false;
+          this.saveSpace = 0;
         }
       } else {
         if (this.flexContainer.classList.contains('split-horizontal')) {
@@ -135,12 +141,15 @@ class FallSimulationLayout {
         }
         if (window.innerHeight <= 600) {
           document.body.classList.add('save-space');
-          this.saveSpace = true;
+          this.saveSpace = 1;
+          if (window.innerHeight <= 400)
+            this.saveSpace = 2;
         } else {
           document.body.classList.remove('save-space');
-          this.saveSpace = false;
+          this.saveSpace = 0;
         }
       }
+      this.updatePanelsAfterResize();
     });
 
     /** @type {number} index of the last drawn frame in the snapshots array */
@@ -175,6 +184,8 @@ class FallSimulationLayout {
     this.progressInfoText = null;
     /** @type {HTMLInputElement|null} button for stopping the calculation */
     this.stopCalculationBtn = null;
+    /** @type {boolean} whether the layout has already been switched to the simulation result layout */
+    this.inSimResLayout = false;
   }
 
   /**
@@ -221,6 +232,34 @@ class FallSimulationLayout {
         this.rightSubpanels[i].style.justifyContent = 'center';
         this.rightSubpanels[i].style.alignItems = 'center';
         this.rightSubpanels[i].style.contain = 'none';
+      }
+    }
+  }
+
+  /**
+   * Should be called after a window resize to adjust the panel number
+   */
+  updatePanelsAfterResize() {
+    if (this.inSimResLayout) {
+      if (this.saveSpace == 0) {
+        if (this.bodyPanels.length != 2 || this.rightSubpanels.length != 4)
+          this.adjustPanelNumber(2, 3);
+      } else if (this.saveSpace == 1) {
+        if (this.bodyPanels.length != 1 || this.rightSubpanels.length != 3)
+          this.adjustPanelNumber(1, 2);
+      } else {
+        if (this.bodyPanels.length != 1 || this.rightSubpanels.length != 2)
+          this.adjustPanelNumber(1, 1);
+      }
+
+      const graphTypes = ['forces', 'energy', 'positions', 'speed'];
+      for (let i = 1 + this.graphCanvases.length; i < this.rightSubpanels.length; i++) {
+        this.graphCanvases.push(
+          new GraphCanvas(this.rightSubpanels[i], this.snapshots, graphTypes[(i-1) % graphTypes.length])
+        );
+      }
+      for (let i = this.graphicsManagers.length; i < this.bodyPanels.length; i++) {
+        this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0)));
       }
     }
   }
@@ -816,7 +855,12 @@ class FallSimulationLayout {
    */
   setupSimulationResultLayout() {
     this.headPanel.removeChild(this.stopCalculationBtn);
-    this.adjustPanelNumber(2, 3, true);
+    if (this.saveSpace == 0)
+      this.adjustPanelNumber(2, 3, true);
+    else if (this.saveSpace == 1)
+      this.adjustPanelNumber(1, 2, true);
+    else
+      this.adjustPanelNumber(1, 1, true);
 
     this.previousFrameBtn = document.createElement('button');
     this.previousFrameBtn.setAttribute('type', 'button');
@@ -923,6 +967,8 @@ class FallSimulationLayout {
     for (let i = 0; i < this.bodyPanels.length; i++) {
       this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0)));
     }
+
+    this.inSimResLayout = true;
   }
 
   /**
