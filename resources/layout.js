@@ -257,10 +257,15 @@ class FallSimulationLayout {
         this.graphCanvases.push(
           new GraphCanvas(this.rightSubpanels[i], this.snapshots, graphTypes[(i-1) % graphTypes.length])
         );
+        this.graphCanvases[i-1].currentTime = this.lastFrameSimTime;
+        this.graphCanvases[i-1].draw();
       }
+      const drawSnapshot = (this.graphicsManagers.length < this.bodyPanels.length);
       for (let i = this.graphicsManagers.length; i < this.bodyPanels.length; i++) {
         this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0)));
       }
+      if (drawSnapshot)
+        this.drawSnapshotAtIndex(this.lastFrameDrawn);
     }
   }
 
