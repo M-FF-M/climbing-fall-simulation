@@ -344,8 +344,7 @@ class FallSimulationLayout {
           const drawSetupStep = this.stepFormTypes.indexOf('draw-setup');
           if (drawSetupStep != -1 && drawSetupStep > this.currentSetupStep) {
             const table = this.stepForms[drawSetupStep].getElementsByClassName('step-form-table')[0];
-            const firstChild = table.getElementsByTagName('tr')[0];
-            table.replaceChildren(firstChild);
+            table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1], table.getElementsByTagName('tr')[2]);
           }
         }
         const currentSettings = this.setupMaskSettings;
