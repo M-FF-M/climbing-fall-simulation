@@ -669,11 +669,11 @@ class FallSimulationLayout {
             const dynamicElongation = readNumberFromInput(document.getElementById('dynamic-elongation'), 'float') / 100;
             const staticElConst = staticElongation / (80 * GRAVITY_OF_EARTH);
             const dynamicElConst = dynamicElongation / impactForce;
-            const estimatedElConst = Math.round(1000 * 1000 * (0.9 * staticElConst + 0.1 * dynamicElConst)) / 1000;
+            const estimatedElConst = Math.round(1000 * 1000 * (0.3 * staticElConst + 0.7 * dynamicElConst)) / 1000;
             document.getElementById('elasticity-constant').value = estimatedElConst;
             document.getElementById('elasticity-constant-hint').innerHTML = `The static elongation leads to an approximate elasticity constant of ${
               Math.round(1000 * 1000 * staticElConst) / 1000}&times;10<sup>-3</sup> per Newton. The dynamic elongation and impact force lead to an approximate elasticity constant of ${
-              Math.round(1000 * 1000 * dynamicElConst) / 1000}&times;10<sup>-3</sup> per Newton. A weighted average of the two will be used as elasticity constant (90 % weight on static value, 10 % weight on dynamic value).`;
+              Math.round(1000 * 1000 * dynamicElConst) / 1000}&times;10<sup>-3</sup> per Newton. A weighted average of the two will be used as elasticity constant (30 % weight on static value, 70 % weight on dynamic value).`;
           };
         })(i);
         document.getElementById('change-elasticity-setup').addEventListener('click', ((idx) => {
