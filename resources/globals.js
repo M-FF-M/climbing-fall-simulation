@@ -15,7 +15,7 @@ const GLOBALS = {
   /** @type {Body[]} all the bodies relevant for displaying the simulation results */
   bodies: [],
   /** @type {string} current version number of the simulation */
-  version: '1.0.2',
+  version: '1.0.3',
   /** @type {string} date of the current version */
-  versionDate: '2025-09-22'
+  versionDate: '2025-11-17'
 };

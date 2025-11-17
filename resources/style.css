@@ -421,3 +421,19 @@ select.size-to-icon-button {
   font-weight: bold;
   margin-bottom: 0.5em;
 }
+
+.rainbow-gradient {
+  background: linear-gradient(
+    to right,
+    #345a5d 0%,
+    #355e8a 11.111%,
+    #53a396 22.222%,
+    #4d884e 33.333%,
+    #809254 44.444%,
+    #ffd43a 55.556%,
+    #f1a02d 66.667%,
+    #b65329 77.778%,
+    #975f60 88.889%,
+    #3e2b3e 100%
+  );
+}

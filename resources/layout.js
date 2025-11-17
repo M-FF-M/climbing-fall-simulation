@@ -252,7 +252,7 @@ class FallSimulationLayout {
           this.adjustPanelNumber(1, 1);
       }
 
-      const graphTypes = ['forces', 'energy', 'positions', 'speed'];
+      const graphTypes = ['forces', 'energy', 'positions', 'speed', 'force-elongation-hysteresis'];
       for (let i = 1 + this.graphCanvases.length; i < this.rightSubpanels.length; i++) {
         this.graphCanvases.push(
           new GraphCanvas(this.rightSubpanels[i], this.snapshots, graphTypes[(i-1) % graphTypes.length])
@@ -961,7 +961,7 @@ class FallSimulationLayout {
     this.playbackControls.appendChild(this.settingsBtn);
     this.rightSubpanels[0].replaceChildren(this.playbackControls);
 
-    const graphTypes = ['forces', 'energy', 'positions', 'speed'];
+    const graphTypes = ['forces', 'energy', 'positions', 'speed', 'force-elongation-hysteresis'];
     for (let i = 1; i < this.rightSubpanels.length; i++) {
       this.graphCanvases.push(
         new GraphCanvas(this.rightSubpanels[i], this.snapshots, graphTypes[(i-1) % graphTypes.length])

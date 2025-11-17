@@ -7,12 +7,14 @@
  * @property {number} current the current force (in Newton) applied to a given body
  * @property {number} [average] the averaged force (in Newton) applied to a given body over the last averageWindow seconds
  * @property {number} [averageWindow] the length of the force averaging window in seconds
+ * @property {number} [climberStretching] the current stretching force (in Newton) at the climber's end of the rope; available for type 'rope'
  */
 
 /**
  * @typedef {Object} StateSnapshot snapshot of the visible state of a body at a given time (excludes e.g. speed or acceleration)
  * @property {[number, number, number]} [position] the current position of a given body (in 3D, coordinates are in meters); available for type 'point mass'
  * @property {[number, number, number][]} [segmentPositions] the current positions of the rope segments (in 3D, coordinates are in meters); available for type 'rope'
+ * @property {number} [elongation] the current elongation of the rope in meters; available for type 'rope'
  * @property {Color} [color] the color of the body
  * @property {string} [radius] the radius used for drawing the point mass (in meters), or the radius used for drawing segment joints of a rope
  * @property {string} [thickness] the thickness of the rope, used for drawing purposes (in meters)
@@ -191,6 +193,8 @@ class Rope {
     this.maxStretchingForce = this.currentStretchingForce;
     /** @type {number} running maximum of the force applied to the climber's end of the rope (end2) */
     this.maxClimberForce = this.currentStretchingForce;
+    /** @type {number} the force in Newton which is required to stretch the rope segment at the climber's end to its current length */
+    this.currentClimberStretching = this.currentStretchingForce;
     /** @type {number} running maximum of the force applied to the belayer's end of the rope (end1) */
     this.maxBelayerForce = this.currentStretchingForce;
     /** @type {number} running maximum of the velocity of the climber's end of the rope (end2) */
@@ -280,6 +284,7 @@ class Rope {
       if (i == 0) this.maxBelayerForce = Math.max(this.maxBelayerForce, this.ropeSegments[i].currentStretchingForce);
       if (i == this.ropeSegments.length-1) this.maxClimberForce = Math.max(this.maxClimberForce, this.ropeSegments[i].currentStretchingForce);
     }
+    this.currentClimberStretching = this.ropeSegments[this.ropeSegments.length-1].currentStretchingForce;
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
     this.maxStretchingForce = Math.max(this.currentStretchingForce, this.maxStretchingForce);
     this.maxRelativeElongation = Math.max(this.maxRelativeElongation, (this.currentLength - this.restLength) / this.restLength);
@@ -363,12 +368,14 @@ class Rope {
       name: this.name,
       visibleState: {
         segmentPositions: segPos,
+        elongation: this.currentLength - this.restLength,
         color: this.drawingColor,
         radius: this.drawingRadius,
         thickness: this.drawingThickness
       },
       forces: {
-        current: this.currentStretchingForce
+        current: this.currentStretchingForce,
+        climberStretching: this.currentClimberStretching
       },
       energy: {
         kinetic: kin,
