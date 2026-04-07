@@ -55,12 +55,8 @@
  * @property {MaximaSnapshot} [runningMaxima] some running maxima statistics (e.g. running maximal speed, etc.)
  */
 
-/** The physics world contains all objects which are relevant to the physics simulation */
-const PHYSICS_WORLD = {
-  /** @type {Body[]} an array containing all bodies of the physics world */
-  bodies: [],
-  /** @type {{normal:V, shift:number, name:string}[]} an array containing all barriers of the physics world */
-  barriers: [],
+/** Object for storing globally used physics variables */
+const PHYSICS_GLOBALS = {
   /** @type {boolean} whether to display warnings when rope segments are too short compared to how far they move in a single simulation frame */
   warningsShortRopeSegments: true,
   /** @type {number} constant which is used for comparisons against zero */
@@ -77,7 +73,7 @@ class Rope {
    * Create a new climbing rope
    * @param {number} [length=5] the length of the rope in meters
    * @param {number} [segments=1] the number of rope segments to use for modelling the rope
-   * @param {Body} [end1] the body attached to one end / the belayer's of the rope (default is a body in the origin which is fixed, i.e., which cannot move)
+   * @param {Body} [end1] the body attached to one end / the belayer's end of the rope (default is a body in the origin which is fixed, i.e., which cannot move)
    * @param {Body} [end2] the body attached to the other end / the climber's end of the rope (default is a point mass of 70 kg, hanging straight below the other, fixed rope end (in y-direction))
    * @param {{elasticityConstant?: number, weightPerMeter?: number, bendDamping?: number, stretchDamping?: number}} [settings] additional rope settings
    * @param {Body[]} [deflectionPoints] an arbitrary number of deflection points (carabiners) through which the rope should pass.
@@ -85,8 +81,8 @@ class Rope {
    */
   constructor(length = 5, segments = 1, end1 = new Body(0, 0, 0, 0, 'anchor'), end2 = new Body(0, -length, 0, 70, 'climber'), settings = {}, ...deflectionPoints) {
     /** @type {number} unique body id */
-    this.id = PHYSICS_WORLD.idCounter;
-    PHYSICS_WORLD.idCounter++;
+    this.id = PHYSICS_GLOBALS.idCounter;
+    PHYSICS_GLOBALS.idCounter++;
 
     const ropeElasticityConst = (settings.hasOwnProperty('elasticityConstant') && (typeof settings['elasticityConstant'] === 'number'))
       ? settings['elasticityConstant'] : 0.079e-3; // 0.079e-3 1/N elasticity constant of typical climbing rope
@@ -141,7 +137,7 @@ class Rope {
       const partialRopeLen = i * (this.currentLength / segments); // length of first i segments
       let prevPartRopeLen = (i-1) * (this.currentLength / segments); // length of first (i-1) segments
       // insert all deflection points which lie within the current rope segment into the dPoints array
-      while (lenArrIdx < deflectionPoints.length && (partialRopeLen + ((i == segments) ? PHYSICS_WORLD.EPS : 0)) > lenArr[lenArrIdx]) {
+      while (lenArrIdx < deflectionPoints.length && (partialRopeLen + ((i == segments) ? PHYSICS_GLOBALS.EPS : 0)) > lenArr[lenArrIdx]) {
         dPoints.push(deflectionPoints[lenArrIdx]);
         dPointPos.push((lenArr[lenArrIdx] - prevPartRopeLen) / currentStretchingFactor); // rest length from previous up to the given deflection point
         dPointSpeed.push(0);
@@ -179,7 +175,7 @@ class Rope {
     }
     for (let i = 1; i+1 < this.bodies.length; i++) { // check body weights
       const newMass = ((i == 1) ? 1 : 0.5) * this.ropeSegments[i-1].mass + ((i+1 == this.bodies.length-1) ? 1 : 0.5) * this.ropeSegments[i].mass;
-      if (Math.abs(this.bodies[i].mass - newMass) > PHYSICS_WORLD.EPS)
+      if (Math.abs(this.bodies[i].mass - newMass) > PHYSICS_GLOBALS.EPS)
         console.warn(`Unexplainable rope body weight inconsistency at body ${i}: ${newMass} vs. ${this.bodies[i].mass}`);
       this.bodies[i].mass = newMass;
     }
@@ -208,6 +204,8 @@ class Rope {
     this.drawingThickness = 0.03; // default is 3 cm
     /** @type {number} radius of the rope segment joints (in meters) used for drawing this rope */
     this.drawingRadius = 0.03; // default is 3 cm
+    /** @type {PhysicsWorld} the parent world of this rope */
+    this.parentWorld = null;
   }
 
   /**
@@ -215,7 +213,8 @@ class Rope {
    * and removes the indicated segment from the ropeSegments array, as well as the corresponding bodies from the bodies array.
    * The two bodies attached to the removed segment are removed, and replaced by the body attached to the appropriate end
    * of one of the two neighboring segments which are now joined. This function does not modify bodyA and bodyB properties
-   * of the rope segments. This has to be done separately (before calling this function)!
+   * of the rope segments. This has to be done separately (before calling this function)! This function does remove the deleted
+   * bodies from the physics world, if the parentWorld property is set.
    * @param {number} idx the index of the rope segment to remove
    */
   removeRopeSegment(idx) {
@@ -229,7 +228,13 @@ class Rope {
       if (idx < this.ropeSegments.length) this.ropeSegments[idx].previousSegment = null;
       if (idx > 0) this.ropeSegments[idx-1].followingSegment = null;
     }
-    this.bodies.splice(idx, 2, idx < this.ropeSegments.length ? this.ropeSegments[idx].bodyA : this.ropeSegments[idx-1].bodyB);
+    const deletedBodies = this.bodies.splice(idx, 2, idx < this.ropeSegments.length ? this.ropeSegments[idx].bodyA : this.ropeSegments[idx-1].bodyB);
+    for (const body of deletedBodies) {
+      if (body.parentWorld !== null)
+        body.parentWorld.removeBody(body);
+    }
+    if (this.parentWorld !== null)
+      this.parentWorld.addBody(idx < this.ropeSegments.length ? this.ropeSegments[idx].bodyA : this.ropeSegments[idx-1].bodyB);
   }
 
   /**
@@ -237,7 +242,7 @@ class Rope {
    * and inserts the indicated segment into the ropeSegments array, as well as the corresponding bodies into the bodies array.
    * The body between the two segments which are now separated by the new segment is removed.
    * This function does not modify bodyA and bodyB properties of the rope segments. This has to be done separately
-   * (before calling this function)!
+   * (before calling this function)! This function does not add the new segment or the bodies at its ends to the physics world.
    * @param {number} idx the index at which to insert the rope segment
    * @param {RopeSegment} ropeSeg the rope segment to insert
    */
@@ -288,7 +293,7 @@ class Rope {
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
     this.maxStretchingForce = Math.max(this.currentStretchingForce, this.maxStretchingForce);
     this.maxRelativeElongation = Math.max(this.maxRelativeElongation, (this.currentLength - this.restLength) / this.restLength);
-    if (Math.abs(checkRestLen - this.restLength) > PHYSICS_WORLD.EPS)
+    if (Math.abs(checkRestLen - this.restLength) > PHYSICS_GLOBALS.EPS)
       throw new Error('The rest length of the rope segments is off!');
   }
 
@@ -414,8 +419,8 @@ class RopeSegment {
    */
   constructor(end1, end2, mass, restLength, minRLength, maxRLength, defaultRLength, elasticityConstant, dampingCoefficient, internalDamping) {
     /** @type {number} unique body id */
-    this.id = PHYSICS_WORLD.idCounter;
-    PHYSICS_WORLD.idCounter++;
+    this.id = PHYSICS_GLOBALS.idCounter;
+    PHYSICS_GLOBALS.idCounter++;
     /** @type {Body} the body at one end of the segment/spring (the body closer to the belayer's end of the rope) */
     this.bodyA = end1;
     /** @type {Body} the body at the other end of the segment/spring (the body closer to the climber's end of the rope) */
@@ -462,6 +467,8 @@ class RopeSegment {
     this.currentStretchingForce = 0;
     /** @type {number} the elastic energy in Joule which is stored in the (stretched) rope segment */
     this.currentElasticEnergy = 0;
+    /** @type {PhysicsWorld} the parent world of this rope segment */
+    this.parentWorld = null;
   }
 
   /**
@@ -508,7 +515,7 @@ class RopeSegment {
 
       const restLen = this.deflectionPointPositions[i-1]; // rest length of the rope segment between the two deflection points
       if (restLen < 0) console.warn(`detected negative rest length of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
-      else if (restLen > 0 && restLen < this.minRestLength / 2 && PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`detected small rest length ${restLen} of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
+      else if (restLen > 0 && restLen < this.minRestLength / 2 && PHYSICS_GLOBALS.warningsShortRopeSegments) console.warn(`detected small rest length ${restLen} of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
       else if (restLen == 0) throw new Error(`zero rest length of part of rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
       currentRestLength += restLen; // calculate current rest length of the rope segment
       const tension = (diffLen - restLen) / (restLen * this.elasticityConstant); // tension (= stretching force) within the segment between the two deflection points
@@ -549,7 +556,7 @@ class RopeSegment {
 
     if (len == 0) throw new Error(`zero actual length of entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
     else if (currentRestLength < 0) console.warn(`detected negative rest length entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
-    else if (currentRestLength > 0 && currentRestLength < this.minRestLength / 2 && PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`detected small rest length ${currentRestLength} of entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
+    else if (currentRestLength > 0 && currentRestLength < this.minRestLength / 2 && PHYSICS_GLOBALS.warningsShortRopeSegments) console.warn(`detected small rest length ${currentRestLength} of entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
     else if (currentRestLength == 0) throw new Error(`zero rest length of entire rope segment no. ${this.indexInRope} with ${this.deflectionPoints.length} deflection point(s)`);
     /** @type {V} vector pointing from bodyA to first deflection point (or bodyB) */
     this.tmpStartDiff = startDiff;
@@ -560,7 +567,7 @@ class RopeSegment {
     /** @type {number} distance of last deflection point (or bodyA) to bodyB */
     this.tmpEndDiffLen = endDiffLen;
     this.currentLength = len;
-    if (Math.abs(this.restLength - currentRestLength) > PHYSICS_WORLD.EPS) console.warn(`rope segment with changing rest length: ${this.restLength} to ${currentRestLength}`);
+    if (Math.abs(this.restLength - currentRestLength) > PHYSICS_GLOBALS.EPS) console.warn(`rope segment with changing rest length: ${this.restLength} to ${currentRestLength}`);
     this.restLength = currentRestLength;
     this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant); // update stretching force
 
@@ -624,7 +631,7 @@ class RopeSegment {
       
       const slidingAcc = effectiveSlidingForce / this.mass; // calculate the rope acceleration
       this.deflectionPointSlidingSpeeds[i] += slidingAcc * delta; // update sliding speed
-      if ((Math.abs(this.deflectionPointSlidingSpeeds[i]) < Math.abs(slidingAcc * delta) - PHYSICS_WORLD.EPS) // if sliding speed close to 0 or if it changed signs
+      if ((Math.abs(this.deflectionPointSlidingSpeeds[i]) < Math.abs(slidingAcc * delta) - PHYSICS_GLOBALS.EPS) // if sliding speed close to 0 or if it changed signs
           && (frictionForce >= Math.abs(slidingForce))) // and if the friction force is bigger than the sliding force
         this.deflectionPointSlidingSpeeds[i] = 0; // then, the rope stops sliding
       this.deflectionPointPositions[i] -= this.deflectionPointSlidingSpeeds[i] * delta; // update rest length of segment to the left of the deflection point
@@ -655,7 +662,7 @@ class RopeSegment {
             this.deflectionPointPositions.shift();
           }
         } else { // no deflection points and rest length becomes smaller than minimal rest length: should not be possible
-          if (PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`first segment of rope too short: ${this.deflectionPointPositions[0]}`);
+          if (PHYSICS_GLOBALS.warningsShortRopeSegments) console.warn(`first segment of rope too short: ${this.deflectionPointPositions[0]}`);
         }
       } else { // not the first rope segment => merge with previous rope segment (delete previous rope segment as well as bodyA of this segment (= bodyB of previous segment))
         this.mass += this.previousSegment.mass; // sum masses
@@ -693,7 +700,7 @@ class RopeSegment {
             this.deflectionPointPositions.pop();
           }
         } else { // no deflection points and rest length becomes smaller than minimal rest length: should not be possible
-          if (PHYSICS_WORLD.warningsShortRopeSegments) console.warn(`last segment of rope too short: ${this.deflectionPointPositions[0]}`);
+          if (PHYSICS_GLOBALS.warningsShortRopeSegments) console.warn(`last segment of rope too short: ${this.deflectionPointPositions[0]}`);
         }
       } else { // not the last rope segment => merge with following rope segment (delete following segment as well as bodyB of this segment (= bodyA of the following segment))
         this.mass += this.followingSegment.mass; // sum masses
@@ -742,6 +749,8 @@ class RopeSegment {
             ((this.previousSegment === null) ? 1 : 0.5) * newMass + ((this.followingSegment === null) ? 1 : 0.5) * this.mass,
             'rope joint'
           ); // create new body connecting this segment and the one which will be inserted
+          if (this.parentWorld !== null) this.parentWorld.addBody(nBody); // add to physics world
+          else console.warn(`New body created while splitting a rope segment, but parent physics world is unknown. Segment id: ${this.id}.`);
           nBody.velocity = this.bodyA.velocity; // the new body should have the same speed as the old end of this segment
           if (this.previousSegment !== null) this.bodyA.mass = 0.5 * newMass + 0.5 * this.previousSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)
           if (this.followingSegment !== null) this.bodyB.mass = 0.5 * this.followingSegment.mass + 0.5 * this.mass;
@@ -752,6 +761,7 @@ class RopeSegment {
             this.defaultRestLength, this.elasticityConstant, this.dampingCoefficient,
             this.internalDamping
           ); // create new rope segment (with default rest length)
+          nRopeSeg.parentWorld = this.parentWorld; // copy parent world from this segment
           this.rope.insertRopeSegment(this.indexInRope, nRopeSeg); // insert segment into rope
           return this.indexInRope - 1; // the current segment (this) might still be too long => process it again
         } else if (i == this.deflectionPointPositions.length - 1) { // part from rope segment end (closer to climber) to last deflection point is too long
@@ -765,6 +775,8 @@ class RopeSegment {
             ((this.followingSegment === null) ? 1 : 0.5) * newMass + ((this.previousSegment === null) ? 1 : 0.5) * this.mass,
             'rope joint'
           ); // create new body connecting this segment and the one which will be inserted
+          if (this.parentWorld !== null) this.parentWorld.addBody(nBody); // add to physics world
+          else console.warn(`New body created while splitting a rope segment, but parent physics world is unknown. Segment id: ${this.id}.`);
           nBody.velocity = this.bodyB.velocity; // the new body should have the same speed as the old end of this segment
           if (this.followingSegment !== null) this.bodyB.mass = 0.5 * newMass + 0.5 * this.followingSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)
           if (this.previousSegment !== null) this.bodyA.mass = 0.5 * this.previousSegment.mass + 0.5 * this.mass;
@@ -775,6 +787,7 @@ class RopeSegment {
             this.defaultRestLength, this.elasticityConstant, this.dampingCoefficient,
             this.internalDamping
           ); // create new rope segment (with default rest length)
+          nRopeSeg.parentWorld = this.parentWorld; // copy parent world from this segment
           this.rope.insertRopeSegment(this.indexInRope + 1, nRopeSeg); // insert segment into rope
           return this.indexInRope - 1; // the current segment (this) might still be too long => process it again
         } else {
@@ -801,8 +814,8 @@ class Body {
   constructor(x = 0, y = 0, z = 0, mass = 0, name = 'body') {
     // mass 0: body cannot move
     /** @type {number} unique body id */
-    this.id = PHYSICS_WORLD.idCounter;
-    PHYSICS_WORLD.idCounter++;
+    this.id = PHYSICS_GLOBALS.idCounter;
+    PHYSICS_GLOBALS.idCounter++;
     /** @type {string} a name for the body */
     this.name = name;
     /** @type {V} current position of the body (in 3D and in meters) */
@@ -837,12 +850,13 @@ class Body {
     this.forceAvgWindow = 0.05; // average force over 50 ms to get a more "stable" maximum force
     /** @type {boolean} whether to ignore this body when drawing force, position, energy or speed graphs */
     this.ignoreInGraphs = false;
-    PHYSICS_WORLD.bodies.push(this); // add body to physcics world (important to ensure that the body meets barrier constraints)
 
     /** @type {Color} color used for drawing this body */
     this.drawingColor = new Color(0, 0, 0);
     /** @type {number} radius (in meters) used for drawing this body */
     this.drawingRadius = 0.07; // default is 7 cm
+    /** @type {PhysicsWorld} the parent world of this body */
+    this.parentWorld = null;
   }
 
   /**
@@ -972,48 +986,4 @@ class Body {
       }
     };
   }
-}
-
-/**
- * Add a barrier to the physics world which no objects may pass (blocks an entire half-space for all objects)
- * @param {V} normalVec the normal vector of the barrier, which must have length 1 and should point away from the half-space which is blocked
- * @param {V} pointInBarrier a point lying on the barrier
- * @param {string} name a name for the barrier
- */
-function addWorldBarrier(normalVec, pointInBarrier, name) {
-  if (Math.abs(normalVec.normsq() - 1) > PHYSICS_WORLD.EPS)
-    throw new Error('A normal vector of a barrier must have length 1!');
-  const barrierInfo = {
-    normal: normalVec,
-    shift: normalVec.dot(pointInBarrier),
-    name: name
-  };
-  PHYSICS_WORLD.barriers.push(barrierInfo);
-}
-
-/**
- * Ensure that all objects satisfy the constraints imposed by barriers (blocked half-spaces). In particular, if a body is located
- * within a blocked half-space, it will be moved to the closest unblocked point directly on the barrier. Any velocity components
- * pointing into the blocked half-space will be nullified.
- */
-function ensureBarrierConstraints() {
-  for (const body of PHYSICS_WORLD.bodies) {
-    for (const barrier of PHYSICS_WORLD.barriers) {
-      const dist = barrier.normal.dot(body.pos);
-      if (dist <= barrier.shift) {
-        body.pos = body.pos.plus(barrier.normal.times(barrier.shift - dist));
-        const velocityIntoBarrier = -barrier.normal.dot(body.velocity);
-        if (velocityIntoBarrier > 0)
-          body.velocity = body.velocity.plus(barrier.normal.times(velocityIntoBarrier));
-      }
-    }
-  }
-}
-
-/**
- * Remove all bodies and barriers from the physics world
- */
-function clearPhysicsWorld() {
-  PHYSICS_WORLD.bodies = [];
-  PHYSICS_WORLD.barriers = [];
 }

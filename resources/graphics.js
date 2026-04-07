@@ -7,8 +7,9 @@ class WorldGraphics {
    * Create a new object responsible for managing the drawing of a scene
    * @param {HTMLElement} boundingElement an element into which the scene should be drawn
    * @param {boolean} [xyProjection=true] whether to show (x,y)-coordinates (project along the z-axis), if set to false, show (z,y)-coordinates instead
+   * @param {PhysicsWorld|null} [physicsWorld=null] the physics world to be drawn (relevant for barrier drawing)
    */
-  constructor(boundingElement, xyProjection = true) {
+  constructor(boundingElement, xyProjection = true, physicsWorld = null) {
     /** @type {ZoomableCanvas} the zoomable canvas onto which to draw */
     this.can = new ZoomableCanvas(boundingElement, () => this.canvasChange())
     /** @type {number} the width of the canvas in pixels (change only using the canvasChange method!) */
@@ -17,6 +18,8 @@ class WorldGraphics {
     this.height = 0;
     /** @type {ObjectSnapshot[]|null} the current snapshot to draw */
     this.currentSnapshot = null;
+    /** @type {PhysicsWorld|null} the physics world (rlevant for barrier drawing) */
+    this.physicsWorld = physicsWorld;
     /** @type {number} the time at which the current snapshot was taken */
     this.currentTime = 0;
     /** @type {number} the scale of the drawing; this measures the ratio pixels / meter */
@@ -161,8 +164,8 @@ class WorldGraphics {
 
     can.drawGrid('m', true, this.scale, this.xOrigin, this.yOrigin);
 
-    if (typeof PHYSICS_WORLD === 'object' && typeof PHYSICS_WORLD.barriers !== 'undefined') { // draw barriers
-      for (const barrier of PHYSICS_WORLD.barriers)
+    if (this.physicsWorld !== null) { // draw barriers
+      for (const barrier of this.physicsWorld.barriers)
         this.drawBarrier(ctx, barrier.normal, barrier.shift);
     }
 

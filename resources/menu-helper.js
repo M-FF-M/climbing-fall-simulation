@@ -56,7 +56,8 @@ function initializeMenu(layoutManager) {
             layoutManager.graphicsManagers[idx].destroy();
             layoutManager.graphicsManagers[idx] = new WorldGraphics(
               layoutManager.bodyPanels[idx],
-              (select.value === 'true')
+              (select.value === 'true'),
+              layoutManager.physicsWorld
             );
             layoutManager.drawSnapshotAtIndex(layoutManager.lastFrameDrawn);
             layoutManager.graphicsManagers[idx].can.showOverlay(select);

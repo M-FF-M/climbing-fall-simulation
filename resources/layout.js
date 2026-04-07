@@ -186,6 +186,10 @@ class FallSimulationLayout {
     this.stopCalculationBtn = null;
     /** @type {boolean} whether the layout has already been switched to the simulation result layout */
     this.inSimResLayout = false;
+    /** @type {PhysicsWorld} the physics world containing all relevant objects */
+    this.physicsWorld = new PhysicsWorld();
+    /** @type {ClimbingFallWorld} an object containing all relevant setup information for the climbing fall */
+    this.climbingFallWorld = null;
   }
 
   /**
@@ -262,7 +266,7 @@ class FallSimulationLayout {
       }
       const drawSnapshot = (this.graphicsManagers.length < this.bodyPanels.length);
       for (let i = this.graphicsManagers.length; i < this.bodyPanels.length; i++) {
-        this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0)));
+        this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0), this.physicsWorld));
       }
       if (drawSnapshot)
         this.drawSnapshotAtIndex(this.lastFrameDrawn);
@@ -279,7 +283,7 @@ class FallSimulationLayout {
     this.headPanel.textContent = 'Climbing fall simulation – Setup';
     this.rightSubpanels[0].textContent = 'Setup preview';
     for (let i = 1; i < this.rightSubpanels.length; i++) {
-      this.previewManagers.push(new WorldGraphics(this.rightSubpanels[i], (i % 2 != 0)));
+      this.previewManagers.push(new WorldGraphics(this.rightSubpanels[i], (i % 2 != 0), this.physicsWorld));
     }
     this.bodyPanels[0].replaceChildren(this.setupMask);
     this.bodyPanels[0].style.overflow = 'auto';
@@ -319,21 +323,23 @@ class FallSimulationLayout {
 
     const updatePhysicsStepSizeHint = () => { // update hint for step size of physics engine
       if (document.getElementById('physics-step-size-info') !== null) {
-        const ropeSegments = GLOBALS.ropeSegmentNum;
-        const ropeMass = GLOBALS.rope.mass;
-        const segmentLength = GLOBALS.rope.defaultSegmentLength;
-        const minSegmentLength = GLOBALS.rope.minSegmentLength;
-        const percentage = numToStr(100 * minSegmentLength / segmentLength) + ' %';
-        const segmentMass = ropeMass / ropeSegments;
-        const stepSize = GLOBALS.maxStep;
-        const segAccPerStep = stepSize * 5000 / segmentMass; // assume max. force of 5 kN
-        const segMovementPerStep = stepSize * 50 / 3.6; // assume max. speed of 50 km/h
-        const infoString = `If you assume that the attained speeds of the objects in the simulation do not exceed 50 km/h, then one rope segment may move by at most ${
-          numToUnitStr(segMovementPerStep, 'm', 1)} during one simulation step of length ${
-          numToUnitStr(stepSize, 's', 1)}. If this value exceeds ${percentage} of the rope segment length, that is, ${
-          numToUnitStr(minSegmentLength, 'm', 1)}, instabilities in the simulation may occur. If the attained forces do not exceed 5 kN, then one rope segment's speed may increase by at most ${
-          numToUnitStr(segAccPerStep, 'm', 1)}/s during one simulation step. This value should also be of a reasonable size.`;
-        document.getElementById('physics-step-size-info').textContent = infoString;
+        if (this.climbingFallWorld !== null) {
+          const ropeSegments = this.climbingFallWorld.ropeSegmentNum;
+          const ropeMass = this.climbingFallWorld.rope.mass;
+          const segmentLength = this.climbingFallWorld.rope.defaultSegmentLength;
+          const minSegmentLength = this.climbingFallWorld.rope.minSegmentLength;
+          const percentage = numToStr(100 * minSegmentLength / segmentLength) + ' %';
+          const segmentMass = ropeMass / ropeSegments;
+          const stepSize = this.climbingFallWorld.maxStep;
+          const segAccPerStep = stepSize * 5000 / segmentMass; // assume max. force of 5 kN
+          const segMovementPerStep = stepSize * 50 / 3.6; // assume max. speed of 50 km/h
+          const infoString = `If you assume that the attained speeds of the objects in the simulation do not exceed 50 km/h, then one rope segment may move by at most ${
+            numToUnitStr(segMovementPerStep, 'm', 1)} during one simulation step of length ${
+            numToUnitStr(stepSize, 's', 1)}. If this value exceeds ${percentage} of the rope segment length, that is, ${
+            numToUnitStr(minSegmentLength, 'm', 1)}, instabilities in the simulation may occur. If the attained forces do not exceed 5 kN, then one rope segment's speed may increase by at most ${
+            numToUnitStr(segAccPerStep, 'm', 1)}/s during one simulation step. This value should also be of a reasonable size.`;
+          document.getElementById('physics-step-size-info').textContent = infoString;
+        }
       }
     };
 
@@ -353,7 +359,7 @@ class FallSimulationLayout {
         this.prepareAndStartSimulation(false);
         this.setupMaskSettings = currentSettings;
         const bodyArr = [];
-        for (const body of GLOBALS.bodies) {
+        for (const body of this.climbingFallWorld.bodies) {
           bodyArr.push(body.captureSnapshot());
         }
         for (const pm of this.previewManagers)
@@ -710,43 +716,47 @@ class FallSimulationLayout {
    * @param {boolean} [startSimulation=true] whether to start the simulation. If set to false, only the simulation objects are set up
    */
   prepareAndStartSimulation(startSimulation = true) {
-    clearPhysicsWorld();
+    this.physicsWorld.clear();
+    this.climbingFallWorld = new ClimbingFallWorld();
 
     const belayerWallDistance = this.setupMaskSettings.hasOwnProperty('belayer-wall-distance') ? this.setupMaskSettings['belayer-wall-distance'] : 0.5;
     const climberWallDistance = this.setupMaskSettings.hasOwnProperty('climber-wall-distance') ? this.setupMaskSettings['climber-wall-distance'] : 0.3;
 
-    GLOBALS.wallAngle = this.setupMaskSettings['wall-angle']; // overhanging degrees
+    this.climbingFallWorld.wallAngle = this.setupMaskSettings['wall-angle']; // overhanging degrees
 
-    GLOBALS.startHeight = this.setupMaskSettings['climber-height']; // height of climber above ground / belay
-    GLOBALS.climberMass = this.setupMaskSettings['climber-weight'];
-    GLOBALS.climber = new Body(
-      GLOBALS.startHeight * Math.tan(Math.PI * GLOBALS.wallAngle / 180) + (climberWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(),
-      GLOBALS.startHeight,
+    this.climbingFallWorld.startHeight = this.setupMaskSettings['climber-height']; // height of climber above ground / belay
+    this.climbingFallWorld.climberMass = this.setupMaskSettings['climber-weight'];
+    this.climbingFallWorld.climber = new Body(
+      this.climbingFallWorld.startHeight * Math.tan(Math.PI * this.climbingFallWorld.wallAngle / 180) + (climberWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(),
+      this.climbingFallWorld.startHeight,
       this.setupMaskSettings['climber-sideways'] - 0.01 + 0.02 * Math.random(),
-      GLOBALS.climberMass,
+      this.climbingFallWorld.climberMass,
       'climber'
     );
-    GLOBALS.climber.drawingColor = new Color(151, 95, 96);
-    // GLOBALS.climber.velocity = new V(0, 0, 0);
+    this.physicsWorld.addBody(this.climbingFallWorld.climber);
+    this.climbingFallWorld.climber.drawingColor = new Color(151, 95, 96);
+    // this.climbingFallWorld.climber.velocity = new V(0, 0, 0);
 
-    GLOBALS.anchorHeight = 0;
-    GLOBALS.anchorMass = this.setupMaskSettings['fixed-anchor'] ? 0 : this.setupMaskSettings['belayer-weight'];
-    GLOBALS.anchor = new Body(-0.01 + 0.02 * Math.random(), GLOBALS.anchorHeight, -0.01 + 0.02 * Math.random(), GLOBALS.anchorMass, 'belayer');
-    GLOBALS.anchor.drawingColor = new Color(77, 136, 78);
+    this.climbingFallWorld.anchorHeight = 0;
+    this.climbingFallWorld.anchorMass = this.setupMaskSettings['fixed-anchor'] ? 0 : this.setupMaskSettings['belayer-weight'];
+    this.climbingFallWorld.anchor = new Body(-0.01 + 0.02 * Math.random(), this.climbingFallWorld.anchorHeight, -0.01 + 0.02 * Math.random(), this.climbingFallWorld.anchorMass, 'belayer');
+    this.physicsWorld.addBody(this.climbingFallWorld.anchor);
+    this.climbingFallWorld.anchor.drawingColor = new Color(77, 136, 78);
 
-    GLOBALS.ropeLength = 0;
-    GLOBALS.lastDrawHeight = (this.setupMaskSettings['draw-number'] > 0) ? this.setupMaskSettings['last-draw-height'] : 0; // height of last draw above ground / belay (set to 0 for no deflection point)
+    this.climbingFallWorld.ropeLength = 0;
+    this.climbingFallWorld.lastDrawHeight = (this.setupMaskSettings['draw-number'] > 0) ? this.setupMaskSettings['last-draw-height'] : 0; // height of last draw above ground / belay (set to 0 for no deflection point)
     const deflectionPoints = [];
-    let lastPos = GLOBALS.anchor.pos;
+    let lastPos = this.climbingFallWorld.anchor.pos;
     for (let i = 0; i < this.setupMaskSettings['draw-number']; i++) {
       const drawWallDistance = this.setupMaskSettings.hasOwnProperty(`draw-${i}-wall-distance`) ? this.setupMaskSettings[`draw-${i}-wall-distance`] : 0.1;
       const nDeflPt = new Body(
-        this.setupMaskSettings[`draw-${i}-height`] * Math.tan(Math.PI * GLOBALS.wallAngle / 180) + (drawWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(), // x coordinate
+        this.setupMaskSettings[`draw-${i}-height`] * Math.tan(Math.PI * this.climbingFallWorld.wallAngle / 180) + (drawWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(), // x coordinate
         this.setupMaskSettings[`draw-${i}-height`], // y coordinate
         this.setupMaskSettings[`draw-${i}-sideways`] - 0.01 + 0.02 * Math.random(), // z coordinate
         0,
         'quickdraw'
       );
+      this.physicsWorld.addBody(nDeflPt);
       if (this.setupMaskSettings.hasOwnProperty('friction-coefficient'))
         nDeflPt.frictionCoefficient = this.setupMaskSettings['friction-coefficient'];
       nDeflPt.drawingColor = new Color(52, 90, 93);
@@ -754,55 +764,75 @@ class FallSimulationLayout {
         nDeflPt.ignoreInGraphs = true;
       deflectionPoints.push(nDeflPt);
       const segLen = nDeflPt.pos.minus(lastPos).norm();
-      GLOBALS.ropeLength += segLen;
+      this.climbingFallWorld.ropeLength += segLen;
       lastPos = nDeflPt.pos;
     }
-    const finalSegLen = GLOBALS.climber.pos.minus(lastPos).norm();
-    GLOBALS.ropeLength += finalSegLen + (this.setupMaskSettings.hasOwnProperty('slack') ? this.setupMaskSettings['slack'] : 0.1); // 10 cm slack
-    GLOBALS.ropeSegmentNum = this.setupMaskSettings['rope-segments'];
-    // GLOBALS.climber.mass = (GLOBALS.ropeLength * 0.062) / (GLOBALS.ropeSegmentNum - 1); GLOBALS.climberMass = GLOBALS.climber.mass; // no climber at the end of the rope
+    const finalSegLen = this.climbingFallWorld.climber.pos.minus(lastPos).norm();
+    this.climbingFallWorld.ropeLength += finalSegLen + (this.setupMaskSettings.hasOwnProperty('slack') ? this.setupMaskSettings['slack'] : 0.1); // 10 cm slack
+    this.climbingFallWorld.ropeSegmentNum = this.setupMaskSettings['rope-segments'];
+    // this.climbingFallWorld.climber.mass = (this.climbingFallWorld.ropeLength * 0.062) / (this.climbingFallWorld.ropeSegmentNum - 1); this.climbingFallWorld.climberMass = this.climbingFallWorld.climber.mass; // no climber at the end of the rope
 
-    GLOBALS.deflectionPoint = (this.setupMaskSettings['draw-number'] > 0) ? deflectionPoints[deflectionPoints.length - 1] : null;
-    // GLOBALS.deflectionPoint.frictionCoefficient = 0;
+    this.climbingFallWorld.deflectionPoint = (this.setupMaskSettings['draw-number'] > 0) ? deflectionPoints[deflectionPoints.length - 1] : null;
+    // this.climbingFallWorld.deflectionPoint.frictionCoefficient = 0;
 
-    GLOBALS.rope = new Rope(GLOBALS.ropeLength, GLOBALS.ropeSegmentNum, GLOBALS.anchor, GLOBALS.climber, {
+    this.climbingFallWorld.rope = new Rope(this.climbingFallWorld.ropeLength, this.climbingFallWorld.ropeSegmentNum, this.climbingFallWorld.anchor, this.climbingFallWorld.climber, {
       elasticityConstant: this.setupMaskSettings['elasticity-constant'] / 1000,
       weightPerMeter: this.setupMaskSettings['rope-weight'],
       bendDamping: this.setupMaskSettings['rope-bend-damping'],
       stretchDamping: this.setupMaskSettings['rope-stretch-damping']
     }, ...deflectionPoints);
-    GLOBALS.rope.drawingColor = new Color(241, 160, 45);
+    this.physicsWorld.addBody(this.climbingFallWorld.rope);
+    this.climbingFallWorld.rope.drawingColor = new Color(241, 160, 45);
     
-    addWorldBarrier(new V(Math.cos(Math.PI * GLOBALS.wallAngle / 180), -Math.sin(Math.PI * GLOBALS.wallAngle / 180), 0), new V(-belayerWallDistance, 0, 0), 'wall');
+    this.physicsWorld.addBarrier(new V(Math.cos(Math.PI * this.climbingFallWorld.wallAngle / 180), -Math.sin(Math.PI * this.climbingFallWorld.wallAngle / 180), 0), new V(-belayerWallDistance, 0, 0), 'wall');
     if (this.setupMaskSettings['ground-present'])
-      addWorldBarrier(new V(0, 1, 0), new V(0, this.setupMaskSettings['ground-level'], 0), 'floor');
+      this.physicsWorld.addBarrier(new V(0, 1, 0), new V(0, this.setupMaskSettings['ground-level'], 0), 'floor');
 
-    if (GLOBALS.startHeight > GLOBALS.lastDrawHeight)
-      GLOBALS.fallFactor = 2 * (GLOBALS.startHeight - GLOBALS.lastDrawHeight) / GLOBALS.ropeLength;
+    if (this.climbingFallWorld.startHeight > this.climbingFallWorld.lastDrawHeight)
+      this.climbingFallWorld.fallFactor = 2 * (this.climbingFallWorld.startHeight - this.climbingFallWorld.lastDrawHeight) / this.climbingFallWorld.ropeLength;
     else
-      GLOBALS.fallFactor = 0;
+      this.climbingFallWorld.fallFactor = 0;
 
-    GLOBALS.gravityOnClimber = GRAVITY_OF_EARTH * GLOBALS.climberMass;
-    GLOBALS.gravityOnBelayer = GRAVITY_OF_EARTH * GLOBALS.anchorMass;
+    this.climbingFallWorld.gravityOnClimber = GRAVITY_OF_EARTH * this.climbingFallWorld.climberMass;
+    this.climbingFallWorld.gravityOnBelayer = GRAVITY_OF_EARTH * this.climbingFallWorld.anchorMass;
 
-    GLOBALS.bodies = [
+    this.climbingFallWorld.bodies = [
       ...deflectionPoints,
-      GLOBALS.rope,
-      GLOBALS.anchor,
-      GLOBALS.climber
+      this.climbingFallWorld.rope,
+      this.climbingFallWorld.anchor,
+      this.climbingFallWorld.climber
     ];
+    this.climbingFallWorld.physicsWorld = this.physicsWorld;
 
-    GLOBALS.maxStep = this.setupMaskSettings['physics-step-size'] / 1000;
+    this.climbingFallWorld.maxStep = this.setupMaskSettings['physics-step-size'] / 1000;
 
-    document.getElementById('gravity-force-climber').textContent = numToUnitStr(GLOBALS.gravityOnClimber, 'N', 2);
-    document.getElementById('gravity-force-belayer').textContent = numToUnitStr(GLOBALS.gravityOnBelayer, 'N', 2);
+    document.getElementById('gravity-force-climber').textContent = numToUnitStr(this.climbingFallWorld.gravityOnClimber, 'N', 2);
+    document.getElementById('gravity-force-belayer').textContent = numToUnitStr(this.climbingFallWorld.gravityOnBelayer, 'N', 2);
     
     if (startSimulation) {
       const FPS = this.setupMaskSettings['frame-rate'];
       const targetTime = this.setupMaskSettings['simulation-duration'];
       for (const pm of this.previewManagers)
         pm.destroy();
-      this.precalculatePositions(targetTime, FPS);
+      this.setupSimulationRunningLayout();
+      this.climbingFallWorld.precalculatePositions((progPercent, progTime) => {
+        if (this.progressBar !== null)
+          this.progressBar.style.width = `${progPercent}%`;
+        if (this.progressBarText !== null)
+          this.progressBarText.textContent = `${numToStr(progPercent, 2, 5)} %`;
+        if (this.progressInfoText !== null)
+          this.progressInfoText.textContent = `Progress: ${numToStr(progPercent, 2, 5)} %, currently at time ${numToStr(progTime, 2, 11)} s`;
+      }, (completed, simTime, snapshots) => {
+        this.simulationDuration = simTime;
+        this.setupMaskSettings['simulation-duration'] = this.simulationDuration;
+        /** @type {boolean} whether the simulation result was saved automatically */
+        this.simResAutoSaved = SimulationStorageManager.autoSaveResult(this.setupMaskSettings, snapshots);
+        /** @type {string|null} the name given to the simulation by the user for saving it, or null if the user didn't save it yet */
+        this.simResUserSaved = null;
+        
+        this.progressInfoText.textContent = `Simulation ${completed ? '' : '(partially) '}completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
+        this.setupSimulationResultLoop(snapshots, FPS);
+      }, targetTime, FPS);
     }
   }
 
@@ -825,7 +855,10 @@ class FallSimulationLayout {
     this.stopCalculationBtn = document.createElement('input');
     this.stopCalculationBtn.setAttribute('type', 'button');
     this.stopCalculationBtn.setAttribute('value', 'Stop');
-    this.stopCalculationBtn.setAttribute('onclick', 'GLOBALS.interruptSimulation = true;');
+    this.stopCalculationBtn.addEventListener('click', (evt) => {
+      if (this.climbingFallWorld !== null)
+        this.climbingFallWorld.interruptSimulation = true;
+    });
     this.headPanel.appendChild(this.stopCalculationBtn);
 
     this.rightSubpanels[0].textContent = 'Simulation running…';
@@ -969,77 +1002,10 @@ class FallSimulationLayout {
     }
     
     for (let i = 0; i < this.bodyPanels.length; i++) {
-      this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0)));
+      this.graphicsManagers.push(new WorldGraphics(this.bodyPanels[i], (i % 2 == 0), this.physicsWorld));
     }
 
     this.inSimResLayout = true;
-  }
-
-  /**
-   * Run the simulation and save the body positions. Once the simulation is complete, the animation loop is started.
-   * @param {number} targetTime the duration (in seconds) for which the simulation should be run
-   * @param {number} [FPS=40] the frame rate at which snapshots should be captured
-   * @param {{time: number, bodies: ObjectSnapshot[]}[]} [prevSnapshots] array of snapshots that were already captured
-   * @param {number} [stepsDone=0] number of simulation steps that were already executed
-   * @param {number} [lastSnapshot=0] simulation time (in seconds) at which the last snapshot was captured
-   */
-  precalculatePositions(targetTime, FPS = 40, prevSnapshots = [], stepsDone = 0, lastSnapshot = 0) {
-    if (prevSnapshots.length === 0 && stepsDone === 0 && lastSnapshot === 0)
-      this.setupSimulationRunningLayout();
-    const lastTime = (new Date()).getTime();
-    const snapshots = [...prevSnapshots];
-    const addSnapshot = (t) => {
-      const bodyArr = [];
-      for (const body of GLOBALS.bodies) {
-        bodyArr.push(body.captureSnapshot());
-      }
-      snapshots.push({
-        time: t,
-        bodies: bodyArr
-      });
-    };
-
-    if (prevSnapshots.length == 0) {
-      GLOBALS.rope.applyGravity(GRAVITY_VEC);
-      GLOBALS.rope.applyRopeForces();
-      addSnapshot(0);
-    }
-    const numSteps = Math.ceil(targetTime / GLOBALS.maxStep);
-    let i = stepsDone + 1;
-    for (; i <= numSteps; i++) {
-      GLOBALS.rope.timeStep(GLOBALS.maxStep);
-      ensureBarrierConstraints();
-      GLOBALS.rope.applyGravity(GRAVITY_VEC);
-      GLOBALS.rope.applyRopeForces();
-      if (i * GLOBALS.maxStep - lastSnapshot >= 1 / FPS) {
-        addSnapshot(i * GLOBALS.maxStep);
-        lastSnapshot = i * GLOBALS.maxStep;
-      }
-      this.simulationDuration = i * GLOBALS.maxStep;
-      if ((new Date()).getTime() - lastTime > 500) {
-        if (this.progressBar !== null)
-          this.progressBar.style.width = `${i / numSteps * 100}%`;
-        if (this.progressBarText !== null)
-          this.progressBarText.textContent = `${numToStr(i / numSteps * 100, 2, 5)} %`;
-        if (this.progressInfoText !== null)
-          this.progressInfoText.textContent = `Progress: ${numToStr(i / numSteps * 100, 2, 5)} %, currently at time ${numToStr(this.simulationDuration, 2, 11)} s`;
-        if (!GLOBALS.interruptSimulation) {
-          window.setTimeout(() => this.precalculatePositions(targetTime, FPS, snapshots, i, lastSnapshot), 10);
-          return;
-        } else {
-          i++;
-          break;
-        }
-      }
-    }
-    this.setupMaskSettings['simulation-duration'] = this.simulationDuration;
-    /** @type {boolean} whether the simulation result was saved automatically */
-    this.simResAutoSaved = SimulationStorageManager.autoSaveResult(this.setupMaskSettings, snapshots);
-    /** @type {string|null} the name given to the simulation by the user for saving it, or null if the user didn't save it yet */
-    this.simResUserSaved = null;
-    
-    this.progressInfoText.textContent = `Simulation ${i-1 == numSteps ? '' : '(partially) '}completed, up to time ${numToStr(this.simulationDuration, 2, 11)} s`;
-    this.setupSimulationResultLoop(snapshots, FPS);
   }
 
   /**
@@ -1075,7 +1041,7 @@ class FallSimulationLayout {
           document.getElementById('peak-force-draw-hint').textContent = ` (averaged over ${numToUnitStr(bodySnap.runningMaxima.forceAvgWindow, 's', 1)})`;
       }
     }
-    document.getElementById('fall-factor').textContent = numToStr(GLOBALS.fallFactor);
+    document.getElementById('fall-factor').textContent = numToStr(this.climbingFallWorld.fallFactor);
 
     this.lastFrameGlobTime = (new Date()).getTime() / 1000;
     this.lastFrameSimTime = 0;
