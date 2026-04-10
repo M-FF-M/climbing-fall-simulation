@@ -10,21 +10,21 @@
 
   <!-- <link rel="shortcut icon" href="XXX.ico"> -->
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1" rel="stylesheet">
-  <link rel="stylesheet" href="resources/style.css">
-  <script src="resources/colors.js"></script>
-  <script src="resources/vec.js"></script>
-  <script src="resources/geometry.js"></script>
-  <script src="resources/units.js"></script>
-  <script src="resources/physics.js"></script>
-  <script src="resources/physics-world.js"></script>
+  <link rel="stylesheet" href="resources/user-interface/style.css">
+  <script src="resources/colors.js"></script> <!-- loaded before physics-world.js because the code in physics-world.js assigns climber, rope, etc. colors -->
+  <script src="resources/physics-engine/vec.js"></script>
+  <script src="resources/physics-engine/geometry.js"></script>
+  <script src="resources/physics-engine/physics.js"></script>
+  <script src="resources/physics-engine/physics-world.js"></script>
   <script src="resources/globals.js"></script>
-  <script src="resources/zoom.js"></script>
-  <script src="resources/graphics.js"></script>
-  <script src="resources/graphs.js"></script>
-  <script src="resources/setup-mask.js"></script>
-  <script src="resources/storage-manager.js"></script>
-  <script src="resources/menu-helper.js"></script>
-  <script src="resources/layout.js"></script>
+  <script src="resources/units.js"></script>
+  <script src="resources/user-interface/zoom.js"></script>
+  <script src="resources/user-interface/graphics.js"></script>
+  <script src="resources/user-interface/graphs.js"></script>
+  <script src="resources/user-interface/setup-mask.js"></script>
+  <script src="resources/user-interface/storage-manager.js"></script>
+  <script src="resources/user-interface/menu-helper.js"></script>
+  <script src="resources/user-interface/layout.js"></script>
   <script src="main.js"></script>
 </head>
 

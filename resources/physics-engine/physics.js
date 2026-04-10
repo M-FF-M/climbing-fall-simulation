@@ -228,13 +228,15 @@ class Rope {
       if (idx < this.ropeSegments.length) this.ropeSegments[idx].previousSegment = null;
       if (idx > 0) this.ropeSegments[idx-1].followingSegment = null;
     }
-    const deletedBodies = this.bodies.splice(idx, 2, idx < this.ropeSegments.length ? this.ropeSegments[idx].bodyA : this.ropeSegments[idx-1].bodyB);
+    const bodyToAdd = (idx < this.ropeSegments.length ? this.ropeSegments[idx].bodyA : this.ropeSegments[idx-1].bodyB);
+    const deletedBodies = this.bodies.splice(idx, 2, bodyToAdd);
     for (const body of deletedBodies) {
-      if (body.parentWorld !== null)
+      if (body === bodyToAdd) continue;
+      if (body.parentWorld !== null && (typeof body.parentWorld === 'object'))
         body.parentWorld.removeBody(body);
     }
-    if (this.parentWorld !== null)
-      this.parentWorld.addBody(idx < this.ropeSegments.length ? this.ropeSegments[idx].bodyA : this.ropeSegments[idx-1].bodyB);
+    if (this.parentWorld !== null && (typeof this.parentWorld === 'object'))
+      this.parentWorld.addBodyIfNotPresent(bodyToAdd);
   }
 
   /**
@@ -308,6 +310,14 @@ class Rope {
       this.ropeSegments[i].timeStep(delta, clearForces);
     this.postprocessTimeStep();
     this.maxEndSpeed = Math.max(this.maxEndSpeed, this.bodies[this.bodies.length - 1].velocity.norm());
+  }
+
+  /**
+   * Clear all forces currently applied to the bodies of this rope
+   */
+  clearForces() {
+    for (let i = 0; i < this.ropeSegments.length; i++)
+      this.ropeSegments[i].clearForces();
   }
 
   /**
@@ -444,8 +454,6 @@ class RopeSegment {
     /** @type {number} damping coefficient for internal friction, no direct physical background */
     this.internalDamping = internalDamping;
 
-    /** @type {number} the spring constant of the rope segment in Newton/meter */
-    this.springConstant = 1 / (this.restLength * this.elasticityConstant);
     /** @type {RopeSegment|null} the previous segment in the rope (closer to the belayer's end, null if this segment is at the end) */
     this.previousSegment = null; // 2nd rope segment attached to bodyA (null if bodyA is the end of the rope)
     /** @type {RopeSegment|null} the next segment in the rope (closer to the climber's end, null if this segment is at the end) */
@@ -647,6 +655,17 @@ class RopeSegment {
   }
 
   /**
+   * Clear all forces currently applied to the bodies of this rope segment
+   */
+  clearForces() {
+    this.bodyA.clearForces();
+    if (this.followingSegment === null) // consistent with timeStep behavior: bodyB only cleared if last segment in rope
+      this.bodyB.clearForces();
+    for (const dPt of this.deflectionPoints)
+      dPt.clearForces();
+  }
+
+  /**
    * First time step postprocessing task: merge rope segments which are too short. Also handle the rope
    * slipping out of a deflection point.
    * @return {number} the index of this rope segment in the rope (after processing)
@@ -749,7 +768,7 @@ class RopeSegment {
             ((this.previousSegment === null) ? 1 : 0.5) * newMass + ((this.followingSegment === null) ? 1 : 0.5) * this.mass,
             'rope joint'
           ); // create new body connecting this segment and the one which will be inserted
-          if (this.parentWorld !== null) this.parentWorld.addBody(nBody); // add to physics world
+          if (this.parentWorld !== null && (typeof this.parentWorld === 'object')) this.parentWorld.addBody(nBody); // add to physics world
           else console.warn(`New body created while splitting a rope segment, but parent physics world is unknown. Segment id: ${this.id}.`);
           nBody.velocity = this.bodyA.velocity; // the new body should have the same speed as the old end of this segment
           if (this.previousSegment !== null) this.bodyA.mass = 0.5 * newMass + 0.5 * this.previousSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)
@@ -775,7 +794,7 @@ class RopeSegment {
             ((this.followingSegment === null) ? 1 : 0.5) * newMass + ((this.previousSegment === null) ? 1 : 0.5) * this.mass,
             'rope joint'
           ); // create new body connecting this segment and the one which will be inserted
-          if (this.parentWorld !== null) this.parentWorld.addBody(nBody); // add to physics world
+          if (this.parentWorld !== null && (typeof this.parentWorld === 'object')) this.parentWorld.addBody(nBody); // add to physics world
           else console.warn(`New body created while splitting a rope segment, but parent physics world is unknown. Segment id: ${this.id}.`);
           nBody.velocity = this.bodyB.velocity; // the new body should have the same speed as the old end of this segment
           if (this.followingSegment !== null) this.bodyB.mass = 0.5 * newMass + 0.5 * this.followingSegment.mass; // adapt end body masses (which should change because the rope segment's mass changes)

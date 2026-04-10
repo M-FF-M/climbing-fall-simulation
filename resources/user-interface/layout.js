@@ -305,7 +305,7 @@ class FallSimulationLayout {
     this.stepFormTypes = [];
     /** @type {number} the current step in the setup workflow */
     this.currentSetupStep = 0;
-    /** @type {object} an object with the current setup settings */
+    /** @type {ClimbingFallSetup} an object with the current setup settings */
     this.setupMaskSettings = {
       version: GLOBALS.version,
       versionDate: GLOBALS.versionDate
@@ -358,10 +358,7 @@ class FallSimulationLayout {
         this.setupMaskSettings = allSettings;
         this.prepareAndStartSimulation(false);
         this.setupMaskSettings = currentSettings;
-        const bodyArr = [];
-        for (const body of this.climbingFallWorld.bodies) {
-          bodyArr.push(body.captureSnapshot());
-        }
+        const bodyArr = this.physicsWorld.captureSnapshot();
         for (const pm of this.previewManagers)
           pm.drawSnapshot(bodyArr, 0);
         if (this.stepFormTypes[this.currentSetupStep] === 'physics-setup') {
@@ -716,95 +713,7 @@ class FallSimulationLayout {
    * @param {boolean} [startSimulation=true] whether to start the simulation. If set to false, only the simulation objects are set up
    */
   prepareAndStartSimulation(startSimulation = true) {
-    this.physicsWorld.clear();
-    this.climbingFallWorld = new ClimbingFallWorld();
-
-    const belayerWallDistance = this.setupMaskSettings.hasOwnProperty('belayer-wall-distance') ? this.setupMaskSettings['belayer-wall-distance'] : 0.5;
-    const climberWallDistance = this.setupMaskSettings.hasOwnProperty('climber-wall-distance') ? this.setupMaskSettings['climber-wall-distance'] : 0.3;
-
-    this.climbingFallWorld.wallAngle = this.setupMaskSettings['wall-angle']; // overhanging degrees
-
-    this.climbingFallWorld.startHeight = this.setupMaskSettings['climber-height']; // height of climber above ground / belay
-    this.climbingFallWorld.climberMass = this.setupMaskSettings['climber-weight'];
-    this.climbingFallWorld.climber = new Body(
-      this.climbingFallWorld.startHeight * Math.tan(Math.PI * this.climbingFallWorld.wallAngle / 180) + (climberWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(),
-      this.climbingFallWorld.startHeight,
-      this.setupMaskSettings['climber-sideways'] - 0.01 + 0.02 * Math.random(),
-      this.climbingFallWorld.climberMass,
-      'climber'
-    );
-    this.physicsWorld.addBody(this.climbingFallWorld.climber);
-    this.climbingFallWorld.climber.drawingColor = new Color(151, 95, 96);
-    // this.climbingFallWorld.climber.velocity = new V(0, 0, 0);
-
-    this.climbingFallWorld.anchorHeight = 0;
-    this.climbingFallWorld.anchorMass = this.setupMaskSettings['fixed-anchor'] ? 0 : this.setupMaskSettings['belayer-weight'];
-    this.climbingFallWorld.anchor = new Body(-0.01 + 0.02 * Math.random(), this.climbingFallWorld.anchorHeight, -0.01 + 0.02 * Math.random(), this.climbingFallWorld.anchorMass, 'belayer');
-    this.physicsWorld.addBody(this.climbingFallWorld.anchor);
-    this.climbingFallWorld.anchor.drawingColor = new Color(77, 136, 78);
-
-    this.climbingFallWorld.ropeLength = 0;
-    this.climbingFallWorld.lastDrawHeight = (this.setupMaskSettings['draw-number'] > 0) ? this.setupMaskSettings['last-draw-height'] : 0; // height of last draw above ground / belay (set to 0 for no deflection point)
-    const deflectionPoints = [];
-    let lastPos = this.climbingFallWorld.anchor.pos;
-    for (let i = 0; i < this.setupMaskSettings['draw-number']; i++) {
-      const drawWallDistance = this.setupMaskSettings.hasOwnProperty(`draw-${i}-wall-distance`) ? this.setupMaskSettings[`draw-${i}-wall-distance`] : 0.1;
-      const nDeflPt = new Body(
-        this.setupMaskSettings[`draw-${i}-height`] * Math.tan(Math.PI * this.climbingFallWorld.wallAngle / 180) + (drawWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(), // x coordinate
-        this.setupMaskSettings[`draw-${i}-height`], // y coordinate
-        this.setupMaskSettings[`draw-${i}-sideways`] - 0.01 + 0.02 * Math.random(), // z coordinate
-        0,
-        'quickdraw'
-      );
-      this.physicsWorld.addBody(nDeflPt);
-      if (this.setupMaskSettings.hasOwnProperty('friction-coefficient'))
-        nDeflPt.frictionCoefficient = this.setupMaskSettings['friction-coefficient'];
-      nDeflPt.drawingColor = new Color(52, 90, 93);
-      if (i != this.setupMaskSettings['draw-number'] - 1)
-        nDeflPt.ignoreInGraphs = true;
-      deflectionPoints.push(nDeflPt);
-      const segLen = nDeflPt.pos.minus(lastPos).norm();
-      this.climbingFallWorld.ropeLength += segLen;
-      lastPos = nDeflPt.pos;
-    }
-    const finalSegLen = this.climbingFallWorld.climber.pos.minus(lastPos).norm();
-    this.climbingFallWorld.ropeLength += finalSegLen + (this.setupMaskSettings.hasOwnProperty('slack') ? this.setupMaskSettings['slack'] : 0.1); // 10 cm slack
-    this.climbingFallWorld.ropeSegmentNum = this.setupMaskSettings['rope-segments'];
-    // this.climbingFallWorld.climber.mass = (this.climbingFallWorld.ropeLength * 0.062) / (this.climbingFallWorld.ropeSegmentNum - 1); this.climbingFallWorld.climberMass = this.climbingFallWorld.climber.mass; // no climber at the end of the rope
-
-    this.climbingFallWorld.deflectionPoint = (this.setupMaskSettings['draw-number'] > 0) ? deflectionPoints[deflectionPoints.length - 1] : null;
-    // this.climbingFallWorld.deflectionPoint.frictionCoefficient = 0;
-
-    this.climbingFallWorld.rope = new Rope(this.climbingFallWorld.ropeLength, this.climbingFallWorld.ropeSegmentNum, this.climbingFallWorld.anchor, this.climbingFallWorld.climber, {
-      elasticityConstant: this.setupMaskSettings['elasticity-constant'] / 1000,
-      weightPerMeter: this.setupMaskSettings['rope-weight'],
-      bendDamping: this.setupMaskSettings['rope-bend-damping'],
-      stretchDamping: this.setupMaskSettings['rope-stretch-damping']
-    }, ...deflectionPoints);
-    this.physicsWorld.addBody(this.climbingFallWorld.rope);
-    this.climbingFallWorld.rope.drawingColor = new Color(241, 160, 45);
-    
-    this.physicsWorld.addBarrier(new V(Math.cos(Math.PI * this.climbingFallWorld.wallAngle / 180), -Math.sin(Math.PI * this.climbingFallWorld.wallAngle / 180), 0), new V(-belayerWallDistance, 0, 0), 'wall');
-    if (this.setupMaskSettings['ground-present'])
-      this.physicsWorld.addBarrier(new V(0, 1, 0), new V(0, this.setupMaskSettings['ground-level'], 0), 'floor');
-
-    if (this.climbingFallWorld.startHeight > this.climbingFallWorld.lastDrawHeight)
-      this.climbingFallWorld.fallFactor = 2 * (this.climbingFallWorld.startHeight - this.climbingFallWorld.lastDrawHeight) / this.climbingFallWorld.ropeLength;
-    else
-      this.climbingFallWorld.fallFactor = 0;
-
-    this.climbingFallWorld.gravityOnClimber = GRAVITY_OF_EARTH * this.climbingFallWorld.climberMass;
-    this.climbingFallWorld.gravityOnBelayer = GRAVITY_OF_EARTH * this.climbingFallWorld.anchorMass;
-
-    this.climbingFallWorld.bodies = [
-      ...deflectionPoints,
-      this.climbingFallWorld.rope,
-      this.climbingFallWorld.anchor,
-      this.climbingFallWorld.climber
-    ];
-    this.climbingFallWorld.physicsWorld = this.physicsWorld;
-
-    this.climbingFallWorld.maxStep = this.setupMaskSettings['physics-step-size'] / 1000;
+    this.climbingFallWorld = new ClimbingFallWorld(this.setupMaskSettings, this.physicsWorld);
 
     document.getElementById('gravity-force-climber').textContent = numToUnitStr(this.climbingFallWorld.gravityOnClimber, 'N', 2);
     document.getElementById('gravity-force-belayer').textContent = numToUnitStr(this.climbingFallWorld.gravityOnBelayer, 'N', 2);

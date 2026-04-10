@@ -5,7 +5,7 @@
 class SimulationStorageManager {
   /**
    * Get all simulation results which have been auto-saved to local storage
-   * @type {{date: string, configuration: object, result: {time: number, bodies: ObjectSnapshot[]}[]}[]}
+   * @type {{date: string, configuration: ClimbingFallSetup, result: {time: number, bodies: ObjectSnapshot[]}[]}[]}
    */
   static get autoSavedResults() {
     const autoSavedRes = localStorage.getItem('auto-saved-results');
@@ -28,7 +28,7 @@ class SimulationStorageManager {
 
   /**
    * Get all simulation results which have been saved to local storage by the user
-   * @type {{name: string, date: string, configuration: object, result: {time: number, bodies: ObjectSnapshot[]}[]}[]}
+   * @type {{name: string, date: string, configuration: ClimbingFallSetup, result: {time: number, bodies: ObjectSnapshot[]}[]}[]}
    */
   static get savedResults() {
     const savedRes = localStorage.getItem('saved-results');
@@ -52,7 +52,7 @@ class SimulationStorageManager {
   /**
    * Auto save a simulation result (if the string length in serialized form is at most 1.5MB (approximately)).
    * This method automatically keeps only the last three simulation results that have been saved automatically, and discards older auto-saved results.
-   * @param {object} configuration the simulation configuration object
+   * @param {ClimbingFallSetup} configuration the simulation configuration object
    * @param {{time: number, bodies: ObjectSnapshot[]}[]} result the simulation result
    * @return {boolean} returns true if the result was saved (because its size was not too high), and false otherwise
    */
@@ -110,7 +110,7 @@ class SimulationStorageManager {
   /**
    * Save a simulation result in the browser
    * @param {string} name the name under which the result should be saved
-   * @param {object} configuration the simulation configuration object
+   * @param {ClimbingFallSetup} configuration the simulation configuration object
    * @param {{time: number, bodies: ObjectSnapshot[]}[]} result the simulation result
    * @return {boolean} whether saving was successful (can fail if the local storage quota is exceeded)
    */
@@ -133,7 +133,7 @@ class SimulationStorageManager {
 
   /**
    * Save a simulation result as a file
-   * @param {object} configuration the simulation configuration object
+   * @param {ClimbingFallSetup} configuration the simulation configuration object
    * @param {{time: number, bodies: ObjectSnapshot[]}[]} result the simulation result
    */
   static saveResultAsFile(configuration, result) {
