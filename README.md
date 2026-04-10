@@ -12,10 +12,11 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 ## To-Do List
 
+- consider whether the timeStep method of the Rope class should really call timeStep on the deflection points
+  - this also affects whether static slings should, by default, call timeStep on the sling ends
 - improve slack handling
 - add some pre-calculated simulations
 - add option to only save the simulation configuration (without the result)
-- add proper quickdraws where the carabiner is attached to a fixed point via a sling
 - add possibility of a movable belayer attached to a fixed point
 - properly implement damping for the rope to get rid of the too-springy behavior
 - highlight key moments and calculate key forces (wall / ground impact, maximal force)

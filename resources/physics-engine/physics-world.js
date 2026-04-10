@@ -15,6 +15,7 @@
  * @property {number} [draw-i-wall-distance] distance of i-th draw (0-indexed) to wall in meters (measured parallel to the ground) (default is 0.1). i should be replaced by a number in the property name.
  * @property {number} [draw-i-sideways] number of meters the i-th draw (0-indexed) is placed to the right of the belay. i should be replaced by a number in the property name.
  * @property {number} [friction-coefficient] friction coefficient of quickdraws (default is 0.125, see constructor of Body class)
+ * @property {boolean} draw-slings whether to model the quickdraws as being attached to a bolt in the wall via a sling (otherwise, they are just fixed points)
  * @property {number} [slack] amount of rope slack in the system in meters (default is 0.1)
  * @property {number} rope-segments number of segments used for the simulation of the rope
  * @property {number} elasticity-constant elasticity constant of the rope in 10^-3 per Newton ("milli" per Newton)
@@ -335,19 +336,26 @@ class ClimbingFallWorld {
       this.anchor.drawingColor = new Color(77, 136, 78);
 
       this.ropeLength = 0;
-      this.lastDrawHeight = (setupSettings['draw-number'] > 0) ? setupSettings['last-draw-height'] : 0; // height of last draw above ground / belay (set to 0 for no deflection point)
       const deflectionPoints = [];
       let lastPos = this.anchor.pos;
       for (let i = 0; i < setupSettings['draw-number']; i++) {
-        const drawWallDistance = setupSettings.hasOwnProperty(`draw-${i}-wall-distance`) ? setupSettings[`draw-${i}-wall-distance`] : 0.1;
-        const nDeflPt = new Body(
-          setupSettings[`draw-${i}-height`] * Math.tan(Math.PI * this.wallAngle / 180) + (drawWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random(), // x coordinate
-          setupSettings[`draw-${i}-height`], // y coordinate
-          setupSettings[`draw-${i}-sideways`] - 0.01 + 0.02 * Math.random(), // z coordinate
-          0,
-          'quickdraw'
-        );
-        this.physicsWorld.addBody(nDeflPt, false, true);
+        const drawWallDistance = setupSettings['draw-slings'] ? 0 : (setupSettings.hasOwnProperty(`draw-${i}-wall-distance`) ? setupSettings[`draw-${i}-wall-distance`] : 0.1);
+        const slingLength = 0.2;
+        const boltX = setupSettings[`draw-${i}-height`] * Math.tan(Math.PI * this.wallAngle / 180) + (drawWallDistance - belayerWallDistance) - 0.01 + 0.02 * Math.random();
+        const boltY = setupSettings[`draw-${i}-height`];
+        const boltZ = setupSettings[`draw-${i}-sideways`] - 0.01 + 0.02 * Math.random();
+        const bolt = new Body(boltX, boltY, boltZ, 0, 'bolt');
+        const carabinerPos = setupSettings['draw-slings']
+          ? (
+            (this.wallAngle < 0)
+            ? bolt.pos.plus(new V(Math.cos(Math.PI * (90 + this.wallAngle) / 180) * slingLength, -Math.sin(Math.PI * (90 + this.wallAngle) / 180) * slingLength, 0))
+            : bolt.pos.plus(new V(0, -slingLength, 0))
+          ) : bolt.pos;
+        bolt.drawingColor = new Color(153, 153, 153);
+        bolt.drawingRadius = 0.04; // 4 cm
+        bolt.ignoreInGraphs = true;
+        const nDeflPt = new Body(...carabinerPos.arr, setupSettings['draw-slings'] ? 0.04 : 0, 'quickdraw');
+        this.physicsWorld.addBody(nDeflPt, false, true); // time-stepping of deflection points is automatically done by the Rope's timeStep method
         if (setupSettings.hasOwnProperty('friction-coefficient'))
           nDeflPt.frictionCoefficient = setupSettings['friction-coefficient'];
         nDeflPt.drawingColor = new Color(52, 90, 93);
@@ -357,6 +365,13 @@ class ClimbingFallWorld {
         const segLen = nDeflPt.pos.minus(lastPos).norm();
         this.ropeLength += segLen;
         lastPos = nDeflPt.pos;
+
+        if (setupSettings['draw-slings']) {
+          this.physicsWorld.addBody(bolt, true, true); // time-stepping does not happen automatically for sling ends! (to prevent duplicate stepping of deflection points, which are attached to quickdraw sling ends)
+          const sling = new StaticSling(slingLength, 3, bolt, nDeflPt);
+          sling.drawingColor = new Color(102, 102, 102);
+          this.physicsWorld.addBody(sling, true, true);
+        }
       }
       const finalSegLen = this.climber.pos.minus(lastPos).norm();
       this.ropeLength += finalSegLen + (setupSettings.hasOwnProperty('slack') ? setupSettings['slack'] : 0.1); // 10 cm slack
@@ -365,6 +380,7 @@ class ClimbingFallWorld {
 
       this.deflectionPoint = (setupSettings['draw-number'] > 0) ? deflectionPoints[deflectionPoints.length - 1] : null;
       // this.deflectionPoint.frictionCoefficient = 0;
+      this.lastDrawHeight = (setupSettings['draw-number'] > 0) ? this.deflectionPoint.pos.y : 0; // height of last draw above ground / belay
 
       this.rope = new Rope(this.ropeLength, this.ropeSegmentNum, this.anchor, this.climber, {
         elasticityConstant: setupSettings['elasticity-constant'] / 1000,

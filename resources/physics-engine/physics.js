@@ -267,10 +267,11 @@ class Rope {
   /**
    * Apply gravity to the rope. Calls the applyGravity functions of the rope segments.
    * @param {V} f the gravity acceleration vector in m / s^2
+   * @param {boolean} [noGravityAtEnds=false] whether to exclude the rope end bodies from applying gravity (useful if they are dealt with separately)
    */
-  applyGravity(f) {
+  applyGravity(f, noGravityAtEnds = false) {
     for (let i = 0; i < this.ropeSegments.length; i++) {
-      this.ropeSegments[i].applyGravity(f);
+      this.ropeSegments[i].applyGravity(f, noGravityAtEnds);
     }
   }
 
@@ -304,10 +305,11 @@ class Rope {
    * Updates the running maximum speed of the climber's rope end.
    * @param {number} delta the length of the time step in seconds
    * @param {boolean} [clearForces=true] whether to clear all forces currently applied to the bodies
+   * @param {boolean} [noTimeStepsForEnds=false] whether to exclude the rope end bodies from time stepping (useful if they are time-stepped separately)
    */
-  timeStep(delta, clearForces = true) {
+  timeStep(delta, clearForces = true, noTimeStepsForEnds = false) {
     for (let i = 0; i < this.ropeSegments.length; i++)
-      this.ropeSegments[i].timeStep(delta, clearForces);
+      this.ropeSegments[i].timeStep(delta, clearForces, noTimeStepsForEnds);
     this.postprocessTimeStep();
     this.maxEndSpeed = Math.max(this.maxEndSpeed, this.bodies[this.bodies.length - 1].velocity.norm());
   }
@@ -482,10 +484,12 @@ class RopeSegment {
   /**
    * Apply gravity to the rope segment. Calls the applyGravity function of bodyA, and also of bodyB if this is the last segment in the rope.
    * @param {V} f the gravity acceleration vector in m / s^2
+   * @param {boolean} [noGravityAtEnds=false] whether to exclude the rope (not rope segment!) end bodies from applying gravity (useful if they are dealt with separately)
    */
-  applyGravity(f) {
-    this.bodyA.applyGravity(f);
-    if (this.followingSegment === null)
+  applyGravity(f, noGravityAtEnds = false) {
+    if (this.previousSegment !== null || !noGravityAtEnds)
+      this.bodyA.applyGravity(f);
+    if (this.followingSegment === null && !noGravityAtEnds)
       this.bodyB.applyGravity(f);
     for (const dPt of this.deflectionPoints)
       dPt.applyGravity(f);
@@ -615,8 +619,9 @@ class RopeSegment {
    * (or rather, how the rest length is distributed between the deflection points).
    * @param {number} delta the length of the time step in seconds
    * @param {boolean} [clearForces=true] whether to clear all forces currently applied to the bodies
+   * @param {boolean} [noTimeStepsForEnds=false] whether to exclude the rope (not rope segment!) end bodies from time stepping (useful if they are time-stepped separately)
    */
-  timeStep(delta, clearForces = true) {
+  timeStep(delta, clearForces = true, noTimeStepsForEnds = false) {
     for (let i = 0; i < this.deflectionPoints.length; i++) {
       let tensionLeft = this.tmpTensionArr[i]; // read calculated tensions (see applyRopeForces()) to the left and to the right of the deflection point
       let tensionRight = this.tmpTensionArr[i+1];
@@ -642,12 +647,28 @@ class RopeSegment {
       if ((Math.abs(this.deflectionPointSlidingSpeeds[i]) < Math.abs(slidingAcc * delta) - PHYSICS_GLOBALS.EPS) // if sliding speed close to 0 or if it changed signs
           && (frictionForce >= Math.abs(slidingForce))) // and if the friction force is bigger than the sliding force
         this.deflectionPointSlidingSpeeds[i] = 0; // then, the rope stops sliding
-      this.deflectionPointPositions[i] -= this.deflectionPointSlidingSpeeds[i] * delta; // update rest length of segment to the left of the deflection point
-      this.deflectionPointPositions[i+1] += this.deflectionPointSlidingSpeeds[i] * delta; // update rest length of segment to the right of the deflection point
+      const positionDelta = this.deflectionPointSlidingSpeeds[i] * delta;
+      this.deflectionPointPositions[i] -= positionDelta; // update rest length of segment to the left of the deflection point
+      this.deflectionPointPositions[i+1] += positionDelta; // update rest length of segment to the right of the deflection point
+      // the rope ends cannot slip out of the deflection points; this can cause issues if a rope end comes really close to a deflection point
+      // below, a minimal rest length is ensured for the rope segment parts nearest to the rope ends
+      // if no previous segment, if the attached mass at the end is signficant (big object which cannot slip out), if the loop is at the first deflection point and if the rest length is too short
+      if (this.previousSegment === null && this.bodyA.mass > 1.2 * this.mass && i == 0 && this.deflectionPointPositions[i] < this.minRestLength / 2) {
+        // undo changes
+        this.deflectionPointPositions[i] += positionDelta;
+        this.deflectionPointPositions[i+1] -= positionDelta;
+      }
+      // if no following segment, if the attached mass at the end is signficant (big object which cannot slip out), if the loop is at the last deflection point and if the rest length is too short
+      if (this.followingSegment === null && this.bodyB.mass > 1.2 * this.mass && i == this.deflectionPoints.length-1 && this.deflectionPointPositions[i+1] < this.minRestLength / 2) {
+        // undo changes
+        this.deflectionPointPositions[i] += positionDelta;
+        this.deflectionPointPositions[i+1] -= positionDelta;
+      }
     }
 
-    this.bodyA.timeStep(delta, clearForces); // execute end body (bodies) timeStep functions
-    if (this.followingSegment === null)
+    if (this.previousSegment !== null || !noTimeStepsForEnds)
+      this.bodyA.timeStep(delta, clearForces); // execute end body (bodies) timeStep functions
+    if (this.followingSegment === null && !noTimeStepsForEnds)
       this.bodyB.timeStep(delta, clearForces);
 
     for (const dPt of this.deflectionPoints)
@@ -815,6 +836,87 @@ class RopeSegment {
       }
     }
     return this.indexInRope;
+  }
+}
+
+/**
+ * A static sling which cannot extend (much) beyond its rest length
+ */
+class StaticSling extends Rope {
+  /**
+   * Create a new static sling
+   * @param {number} [length=0.2] the length of the sling in meters
+   * @param {number} [segments=3] the number of sling segments to use for modelling the sling (see Rope)
+   * @param {Body} [end1] the body attached to one end of the sling (default is a body in the origin which is fixed, i.e., which cannot move)
+   * @param {Body} [end2] the body attached to the other end (default is a point mass of 40 g, hanging straight below the other, fixed sling end (in y-direction))
+   * @param {number} [maxExtension=0.005] the maximal extension tolerated for this sling beyond the assigned length in meters
+   */
+  constructor(length = 0.2, segments = 3, end1 = new Body(0, 0, 0, 0, 'bolt'), end2 = new Body(0, -length, 0, 0.04, 'carabiner'), maxExtension = 0.005) {
+    super(length, segments, end1, end2);
+    /** @type {string} a name for the body */
+    this.name = 'sling';
+    /** @type {number} the maximal extension tolerated for this sling beyond the assigned length in meters */
+    this.maxExtension = maxExtension;
+    /** @type {number} radius of the sling segment joints (in meters) used for drawing this sling */
+    this.drawingRadius = 0.015; // default is 1.5 cm
+  }
+
+  /**
+   * Apply gravity to the sling. Calls the applyGravity functions of the sling segments. In contrast to the Rope's applyGravity
+   * method, gravity is not applied for the sling's ends. It is assumed that this happens separately.
+   * @param {V} f the gravity acceleration vector in m / s^2
+   */
+  applyGravity(f) {
+    super.applyGravity(f, true);
+  }
+
+  /**
+   * Execute a time step for all bodies in the sling. In addition to what the Rope's timeStep method does, this method
+   * ensures that the sling does not extend beyond the given maximal extension. In contrast to the Rope's timeStep method,
+   * the timeStep methods of the bodies at the sling's ends are NOT called, this only happens for the bodies at the internal
+   * segment joints. It is assumed that time stepping for the sling's ends happens separately.
+   * @param {number} delta the length of the time step in seconds
+   * @param {boolean} [clearForces=true] whether to clear all forces currently applied to the bodies
+   */
+  timeStep(delta, clearForces = true) {
+    super.timeStep(delta, clearForces, true);
+    const bodyA = this.bodies[0]; // body at end 1
+    const bodyB = this.bodies[this.bodies.length - 1]; // body at end 2
+
+    const diff = bodyB.pos.minus(bodyA.pos); // vector pointing from end 1 to end 2 of sling
+    const len = diff.norm(); // distance of the two sling ends
+    if (len < PHYSICS_GLOBALS.EPS) return;
+
+    const dir = diff.times(1 / len); // vector of length 1 pointing from end 1 to end 2 of sling
+    const limit = this.restLength + this.maxExtension; // maximal allowed sling length
+    const excess = len - limit; // excess sling length
+
+    // sling slack or just below limit => do nothing
+    if (excess <= 0) return;
+
+    // according to ChatGPT, corrections should be distributed proportionally to inverse object masses
+    const invMassA = bodyA.mass > 0 ? 1 / bodyA.mass : 0;
+    const invMassB = bodyB.mass > 0 ? 1 / bodyB.mass : 0;
+    const invMassSum = invMassA + invMassB;
+    if (invMassSum === 0) return; // both sling end points are fixed => do nothing
+
+    // position projection
+    const corr = dir.times(excess);
+    if (invMassA > 0)
+      bodyA.pos = bodyA.pos.plus(corr.times( invMassA / invMassSum));
+    if (invMassB > 0)
+      bodyB.pos = bodyB.pos.plus(corr.times(-invMassB / invMassSum));
+
+    // remove separating radial velocity
+    const relativeVelocity = bodyB.velocity.minus(bodyA.velocity);
+    const vRad = relativeVelocity.dot(dir);
+    if (vRad > 0) {
+      const velocityCorr = dir.times(vRad);
+      if (invMassA > 0)
+        bodyA.velocity = bodyA.velocity.plus(velocityCorr.times( invMassA / invMassSum));
+      if (invMassB > 0)
+        bodyB.velocity = bodyB.velocity.plus(velocityCorr.times(-invMassB / invMassSum));
+    }
   }
 }
 

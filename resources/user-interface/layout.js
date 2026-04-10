@@ -350,7 +350,8 @@ class FallSimulationLayout {
           const drawSetupStep = this.stepFormTypes.indexOf('draw-setup');
           if (drawSetupStep != -1 && drawSetupStep > this.currentSetupStep) {
             const table = this.stepForms[drawSetupStep].getElementsByClassName('step-form-table')[0];
-            table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1], table.getElementsByTagName('tr')[2]);
+            table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1],
+              table.getElementsByTagName('tr')[2], table.getElementsByTagName('tr')[3], table.getElementsByTagName('tr')[4]);
           }
         }
         const currentSettings = this.setupMaskSettings;
@@ -384,7 +385,8 @@ class FallSimulationLayout {
           if (this.stepFormTypes[this.currentSetupStep] === 'draw-setup') { // draw setup step
             const numDraws = this.setupMaskSettings['draw-number'];
             const table = this.stepForms[this.currentSetupStep].getElementsByClassName('step-form-table')[0];
-            table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1], table.getElementsByTagName('tr')[2]);
+            table.replaceChildren(table.getElementsByTagName('tr')[0], table.getElementsByTagName('tr')[1],
+              table.getElementsByTagName('tr')[2], table.getElementsByTagName('tr')[3], table.getElementsByTagName('tr')[4]);
             table.style.marginBottom = '1em';
 
             if (numDraws == 0) {

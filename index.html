@@ -292,6 +292,25 @@
                 not influence the amount of friction.
               </td>
             </tr>
+            <tr>
+              <td><label for="draw-slings">Add quick draw slings</label></td>
+              <td><input type="checkbox" id="draw-slings" /></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                Whether to add slings to every quick draw for a more realistic animation. If unchecked, each quick draw is
+                simply a fixed point at the specified location and does not move (as if the rope was passing directly through
+                the bolts). If checked, the carabiners are attached to a fixed bolt on the wall via a static sling with a
+                length of 20 cm (the quick draw to wall distance setting is ignored in this case). The overall effect on
+                the simulation is relatively small. However, note that when using slings, carabiners will be hanging 20 cm
+                lower than when using fixed quick draw positions, resulting in an increased fall height. <b>The simulation
+                is currently more susceptible to peak force artifacts which would not appear in reality when using this
+                setting.</b> This is caused by the current 0-size approximation of the belayer being pulled very close to
+                the lowest carabiner and being artificially blocked from slipping through the carabiner (it is planned to
+                replace the 0-size approximations with a more realistic representation in the future).
+              </td>
+            </tr>
             <tr class="additional-input-info">
               <td colspan="2">
                 <span class="info-icon material-symbols-outlined">info</span>

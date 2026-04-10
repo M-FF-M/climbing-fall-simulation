@@ -22,7 +22,8 @@ const SETUP_MASK_STEPS = {
   },
   'draw-setup': {
     inputs: [
-      { type: 'float', id: 'friction-coefficient' }
+      { type: 'float', id: 'friction-coefficient' },
+      { type: 'boolean', id: 'draw-slings' }
     ]
   },
   'distance-setup': {
@@ -67,6 +68,7 @@ const UIAA_NORM_FALL_SETUP = {
   "belayer-weight": 70,
   "slack": 0,
   "friction-coefficient": 0.125,
+  "draw-slings": false,
   "draw-0-height": 0.26,
   "draw-0-sideways": 0.15,
   "belayer-wall-distance": 0.7,
