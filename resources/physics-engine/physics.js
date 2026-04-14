@@ -204,6 +204,8 @@ class Rope {
     this.drawingThickness = 0.03; // default is 3 cm
     /** @type {number} radius of the rope segment joints (in meters) used for drawing this rope */
     this.drawingRadius = 0.03; // default is 3 cm
+    /** @type {boolean} whether to ignore this rope when drawing force, energy or speed graphs */
+    this.ignoreInGraphs = false;
     /** @type {PhysicsWorld} the parent world of this rope */
     this.parentWorld = null;
   }
@@ -265,7 +267,8 @@ class Rope {
   }
 
   /**
-   * Apply gravity to the rope. Calls the applyGravity functions of the rope segments.
+   * Apply gravity to the rope. Calls the applyGravity functions of the rope segments. Does not call applyGravity
+   * for the deflection points.
    * @param {V} f the gravity acceleration vector in m / s^2
    * @param {boolean} [noGravityAtEnds=false] whether to exclude the rope end bodies from applying gravity (useful if they are dealt with separately)
    */
@@ -302,7 +305,7 @@ class Rope {
 
   /**
    * Execute a time step for all bodies in the rope. Calls the timeStep functions of the rope segments and the postprocessTimeStep functions.
-   * Updates the running maximum speed of the climber's rope end.
+   * Updates the running maximum speed of the climber's rope end. Does not execute a time step for the deflection points.
    * @param {number} delta the length of the time step in seconds
    * @param {boolean} [clearForces=true] whether to clear all forces currently applied to the bodies
    * @param {boolean} [noTimeStepsForEnds=false] whether to exclude the rope end bodies from time stepping (useful if they are time-stepped separately)
@@ -315,7 +318,7 @@ class Rope {
   }
 
   /**
-   * Clear all forces currently applied to the bodies of this rope
+   * Clear all forces currently applied to the bodies of this rope (not including deflection points)
    */
   clearForces() {
     for (let i = 0; i < this.ropeSegments.length; i++)
@@ -375,6 +378,20 @@ class Rope {
       }
       if (i == this.ropeSegments.length - 1)
         segPos.push(this.ropeSegments[i].bodyB.pos.arr);
+    }
+    if (this.ignoreInGraphs) {
+      return {
+        type: 'rope',
+        id: `${this.name} [${this.id}]`,
+        name: this.name,
+        visibleState: {
+          segmentPositions: segPos,
+          elongation: this.currentLength - this.restLength,
+          color: this.drawingColor,
+          radius: this.drawingRadius,
+          thickness: this.drawingThickness
+        }
+      };
     }
     const kin = this.currentKineticEnergy;
     const pot = this.currentPotentialEnergy;
@@ -483,6 +500,7 @@ class RopeSegment {
 
   /**
    * Apply gravity to the rope segment. Calls the applyGravity function of bodyA, and also of bodyB if this is the last segment in the rope.
+   * Does not call applyGravity for the deflection points.
    * @param {V} f the gravity acceleration vector in m / s^2
    * @param {boolean} [noGravityAtEnds=false] whether to exclude the rope (not rope segment!) end bodies from applying gravity (useful if they are dealt with separately)
    */
@@ -491,8 +509,6 @@ class RopeSegment {
       this.bodyA.applyGravity(f);
     if (this.followingSegment === null && !noGravityAtEnds)
       this.bodyB.applyGravity(f);
-    for (const dPt of this.deflectionPoints)
-      dPt.applyGravity(f);
   }
 
   /**
@@ -616,7 +632,8 @@ class RopeSegment {
   /**
    * Execute a time step for this rope segment. Calls the timeStep function of bodyA, and also of bodyB if this is the last rope segment.
    * Calculates friction and sliding forces at the deflection points and updates the sliding speeds as well as the deflection point positions
-   * (or rather, how the rest length is distributed between the deflection points).
+   * (or rather, how the rest length is distributed between the deflection points). Does not call the timeStep functions of the
+   * deflection points.
    * @param {number} delta the length of the time step in seconds
    * @param {boolean} [clearForces=true] whether to clear all forces currently applied to the bodies
    * @param {boolean} [noTimeStepsForEnds=false] whether to exclude the rope (not rope segment!) end bodies from time stepping (useful if they are time-stepped separately)
@@ -670,20 +687,15 @@ class RopeSegment {
       this.bodyA.timeStep(delta, clearForces); // execute end body (bodies) timeStep functions
     if (this.followingSegment === null && !noTimeStepsForEnds)
       this.bodyB.timeStep(delta, clearForces);
-
-    for (const dPt of this.deflectionPoints)
-      dPt.timeStep(delta, clearForces);
   }
 
   /**
-   * Clear all forces currently applied to the bodies of this rope segment
+   * Clear all forces currently applied to the bodies of this rope segment (does not include deflection points)
    */
   clearForces() {
     this.bodyA.clearForces();
     if (this.followingSegment === null) // consistent with timeStep behavior: bodyB only cleared if last segment in rope
       this.bodyB.clearForces();
-    for (const dPt of this.deflectionPoints)
-      dPt.clearForces();
   }
 
   /**
@@ -862,24 +874,14 @@ class StaticSling extends Rope {
   }
 
   /**
-   * Apply gravity to the sling. Calls the applyGravity functions of the sling segments. In contrast to the Rope's applyGravity
-   * method, gravity is not applied for the sling's ends. It is assumed that this happens separately.
-   * @param {V} f the gravity acceleration vector in m / s^2
-   */
-  applyGravity(f) {
-    super.applyGravity(f, true);
-  }
-
-  /**
    * Execute a time step for all bodies in the sling. In addition to what the Rope's timeStep method does, this method
-   * ensures that the sling does not extend beyond the given maximal extension. In contrast to the Rope's timeStep method,
-   * the timeStep methods of the bodies at the sling's ends are NOT called, this only happens for the bodies at the internal
-   * segment joints. It is assumed that time stepping for the sling's ends happens separately.
+   * ensures that the sling does not extend beyond the given maximal extension.
    * @param {number} delta the length of the time step in seconds
    * @param {boolean} [clearForces=true] whether to clear all forces currently applied to the bodies
+   * @param {boolean} [noTimeStepsForEnds=false] whether to exclude the rope end bodies from time stepping (useful if they are time-stepped separately)
    */
-  timeStep(delta, clearForces = true) {
-    super.timeStep(delta, clearForces, true);
+  timeStep(delta, clearForces = true, noTimeStepsForEnds = false) {
+    super.timeStep(delta, clearForces, noTimeStepsForEnds);
     const bodyA = this.bodies[0]; // body at end 1
     const bodyB = this.bodies[this.bodies.length - 1]; // body at end 2
 
@@ -969,7 +971,7 @@ class Body {
     this.time = 0;
     /** @type {number} length (in seconds) of the averaging window used to average forces applied to the body */
     this.forceAvgWindow = 0.05; // average force over 50 ms to get a more "stable" maximum force
-    /** @type {boolean} whether to ignore this body when drawing force, position, energy or speed graphs */
+    /** @type {boolean} whether to ignore this body when drawing force, energy or speed graphs */
     this.ignoreInGraphs = false;
 
     /** @type {Color} color used for drawing this body */

@@ -626,7 +626,7 @@ class FallSimulationLayout {
                     }
                   }
                 };
-              })(i, automatic, resultDescr));
+              })(k, automatic, resultDescr));
               delTd.appendChild(deleteButton);
               tr.appendChild(delTd);
               table.appendChild(tr);

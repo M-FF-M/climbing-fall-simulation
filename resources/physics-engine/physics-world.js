@@ -355,7 +355,7 @@ class ClimbingFallWorld {
         bolt.drawingRadius = 0.04; // 4 cm
         bolt.ignoreInGraphs = true;
         const nDeflPt = new Body(...carabinerPos.arr, setupSettings['draw-slings'] ? 0.04 : 0, 'quickdraw');
-        this.physicsWorld.addBody(nDeflPt, false, true); // time-stepping of deflection points is automatically done by the Rope's timeStep method
+        this.physicsWorld.addBody(nDeflPt, !setupSettings['draw-slings'], true); // time-stepping of deflection points is not done automatically by the rope, but if the deflection point is also a sling end, then sling time-stepping takes care of it
         if (setupSettings.hasOwnProperty('friction-coefficient'))
           nDeflPt.frictionCoefficient = setupSettings['friction-coefficient'];
         nDeflPt.drawingColor = new Color(52, 90, 93);
@@ -367,9 +367,10 @@ class ClimbingFallWorld {
         lastPos = nDeflPt.pos;
 
         if (setupSettings['draw-slings']) {
-          this.physicsWorld.addBody(bolt, true, true); // time-stepping does not happen automatically for sling ends! (to prevent duplicate stepping of deflection points, which are attached to quickdraw sling ends)
+          this.physicsWorld.addBody(bolt, false, true); // time-stepping of sling ends happens automatically through sling time-stepping
           const sling = new StaticSling(slingLength, 3, bolt, nDeflPt);
           sling.drawingColor = new Color(102, 102, 102);
+          sling.ignoreInGraphs = true;
           this.physicsWorld.addBody(sling, true, true);
         }
       }

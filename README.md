@@ -6,18 +6,18 @@ The webpage is still work in progress. You can check out the current version at 
 
 ## License
 
-Copyright © 2025 Fabian Michel
+Copyright © 2026 Fabian Michel
 
 The entire code in this repository is licensed under the [MIT License](LICENSE.md).
 
 ## To-Do List
 
-- consider whether the timeStep method of the Rope class should really call timeStep on the deflection points
-  - this also affects whether static slings should, by default, call timeStep on the sling ends
-- improve slack handling
+- improve force reporting for static slings: force transferral to bolt (0-mass end) when taut
+- set sliding speed = 0 when rope end with significant mass hits deflection point
+- properly implement damping for the rope to get rid of the too-springy behavior
+- add possibility of a movable belayer attached to a fixed point
+- improve slack handling (pre-simulation step with fixed climber and belayer)
 - add some pre-calculated simulations
 - add option to only save the simulation configuration (without the result)
-- add possibility of a movable belayer attached to a fixed point
-- properly implement damping for the rope to get rid of the too-springy behavior
 - highlight key moments and calculate key forces (wall / ground impact, maximal force)
 - decrease the axis legend text size if it covers too much of the available space
