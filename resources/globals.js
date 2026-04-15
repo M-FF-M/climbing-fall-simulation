@@ -2,7 +2,7 @@
 /** @type {object} an object containing important global variables */
 const GLOBALS = {
   /** @type {string} current version number of the simulation */
-  version: '1.1.1',
+  version: '1.1.2',
   /** @type {string} date of the current version */
-  versionDate: '2026-04-14'
+  versionDate: '2026-04-15'
 };

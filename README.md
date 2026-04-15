@@ -15,6 +15,7 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 - improve force reporting for static slings: force transferral to bolt (0-mass end) when taut
 - set sliding speed = 0 when rope end with significant mass hits deflection point
 - properly implement damping for the rope to get rid of the too-springy behavior
+- when using quickdraws with slings, add option to specify each sling length
 - add possibility of a movable belayer attached to a fixed point
 - improve slack handling (pre-simulation step with fixed climber and belayer)
 - add some pre-calculated simulations
