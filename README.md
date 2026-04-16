@@ -12,8 +12,6 @@ The entire code in this repository is licensed under the [MIT License](LICENSE.m
 
 ## To-Do List
 
-- consider how rope force reporting has to change with SLS model
-- peak impact force reporting is also off
 - improve force reporting for static slings: force transferral to bolt (0-mass end) when taut
 - when using quickdraws with slings, add option to specify each sling length
 - add possibility of a movable belayer attached to a fixed point

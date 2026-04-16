@@ -50,9 +50,9 @@
                 <span class="info-icon material-symbols-outlined">info</span>
                 Configures the simulation to match the setup of a UIAA norm fall (see <a href="https://www.theuiaa.org/safety/safety-standards/">UIAA safety standards</a>).
                 Note that the UIAA standard setup cannot be exactly reproduced because a simplified model is used in this simulation.
-                Also note that the simulation currently uses a linear spring model for the rope, instead of the more realistic viscoelastic model.
-                This means that the forces measured by rope manufacturers during a UIAA norm fall will not match the simulated forces exactly, even if you
-                input the exact rope specifications.
+                Also note that the simulation currently does not yet fully support configuring a viscoelastic rope model (only the linear spring
+                model can be fully configured). This means that the forces measured by rope manufacturers during a UIAA norm fall will not match
+                the simulated forces exactly, even if you input the exact rope specifications.
               </td>
             </tr>
             <tr class="additional-input-info">
@@ -305,11 +305,7 @@
                 the bolts). If checked, the carabiners are attached to a fixed bolt on the wall via a static sling with a
                 length of 20 cm (the quick draw to wall distance setting is ignored in this case). The overall effect on
                 the simulation is relatively small. However, note that when using slings, carabiners will be hanging 20 cm
-                lower than when using fixed quick draw positions, resulting in an increased fall height. <b>The simulation
-                is currently more susceptible to peak force artifacts which would not appear in reality when using this
-                setting.</b> This is caused by the current 0-size approximation of the belayer being pulled very close to
-                the lowest carabiner and being artificially blocked from slipping through the carabiner (it is planned to
-                replace the 0-size approximations with a more realistic representation in the future).
+                lower than when using fixed quick draw positions, resulting in an increased fall height.
               </td>
             </tr>
             <tr class="additional-input-info">
@@ -485,8 +481,8 @@
                 <span class="info-icon material-symbols-outlined">info</span>
                 How much to damp rope stretching. The value has no direct physical meaning, but the higher the value, the less &ldquo;springy&rdquo;
                 the rope is (rope length changes due to stretching are damped to a higher extent). Note that the rope is currently modelled as
-                a linear spring. The effect of the stretch damping parameter is quite limited. To get a more realistic model, an extension to
-                a viscoelastic rope model is planned at some point in the future.
+                a linear spring. The effect of the stretch damping parameter is quite limited, in contrast to the viscous damping in the
+                standard linear solid model which you can choose above.
               </td>
             </tr>
           </table>
