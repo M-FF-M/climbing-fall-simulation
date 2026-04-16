@@ -36,6 +36,7 @@ const SETUP_MASK_STEPS = {
     inputs: [
       { type: 'float', id: 'elasticity-constant' },
       { type: 'float', id: 'rope-weight' },
+      { type: 'select', id: 'rope-model' },
       { type: 'float', id: 'rope-bend-damping' },
       { type: 'float', id: 'rope-stretch-damping' }
     ]
@@ -145,6 +146,8 @@ function verifySetupMaskStep(stepNumber, settingsObject) {
     } else if (type === 'boolean') {
       const val = document.getElementById(id).checked;
       settingsObject[id] = val;
+    } else if (type === 'select') {
+      settingsObject[id] = document.getElementById(id).value;
     }
   }
   if (stepId === 'draw-setup') {
@@ -202,6 +205,11 @@ function changeSetupDefaults(defaultObject) {
       if (typeof defaultObject[prop] === 'boolean') {
         document.getElementById(prop).checked = defaultObject[prop];
         document.getElementById(prop).defaultChecked = defaultObject[prop];
+      } else if (document.getElementById(prop).tagName === 'SELECT') {
+        document.getElementById(prop).value = defaultObject[prop];
+        for (const option of document.getElementById(prop).options) {
+          option.defaultSelected = (option.value === defaultObject[prop]);
+        }
       } else {
         document.getElementById(prop).value = defaultObject[prop];
         document.getElementById(prop).defaultValue = defaultObject[prop];

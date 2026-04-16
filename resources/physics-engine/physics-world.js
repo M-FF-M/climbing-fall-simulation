@@ -20,6 +20,7 @@
  * @property {number} rope-segments number of segments used for the simulation of the rope
  * @property {number} elasticity-constant elasticity constant of the rope in 10^-3 per Newton ("milli" per Newton)
  * @property {number} rope-weight weight of the rope in kilograms per meter
+ * @property {'linear'|'sls'} rope-model which physical model to use for the rope (available models: linear spring, standard linear solid model)
  * @property {number} rope-bend-damping the higher the value, the stiffer the rope (less bending)
  * @property {number} rope-stretch-damping the higher the value, the less springy the rope is
  * @property {boolean} ground-present whether the ground should be inserted as a barrier into the model (like the climbing wall); it might make sense to remove the ground in multi-pitch settings
@@ -386,6 +387,7 @@ class ClimbingFallWorld {
       this.rope = new Rope(this.ropeLength, this.ropeSegmentNum, this.anchor, this.climber, {
         elasticityConstant: setupSettings['elasticity-constant'] / 1000,
         weightPerMeter: setupSettings['rope-weight'],
+        ropeModel: setupSettings['rope-model'],
         bendDamping: setupSettings['rope-bend-damping'],
         stretchDamping: setupSettings['rope-stretch-damping']
       }, ...deflectionPoints);

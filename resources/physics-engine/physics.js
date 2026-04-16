@@ -75,7 +75,7 @@ class Rope {
    * @param {number} [segments=1] the number of rope segments to use for modelling the rope
    * @param {Body} [end1] the body attached to one end / the belayer's end of the rope (default is a body in the origin which is fixed, i.e., which cannot move)
    * @param {Body} [end2] the body attached to the other end / the climber's end of the rope (default is a point mass of 70 kg, hanging straight below the other, fixed rope end (in y-direction))
-   * @param {{elasticityConstant?: number, weightPerMeter?: number, bendDamping?: number, stretchDamping?: number}} [settings] additional rope settings
+   * @param {{elasticityConstant?: number, weightPerMeter?: number, ropeModel?: 'linear'|'sls', bendDamping?: number, stretchDamping?: number}} [settings] additional rope settings
    * @param {Body[]} [deflectionPoints] an arbitrary number of deflection points (carabiners) through which the rope should pass.
    *                                    The rope passes through the deflection points in the order in which they are given, starting from end1 of the rope.
    */
@@ -88,6 +88,8 @@ class Rope {
       ? settings['elasticityConstant'] : 0.079e-3; // 0.079e-3 1/N elasticity constant of typical climbing rope
     const weightPerMeter = (settings.hasOwnProperty('weightPerMeter') && (typeof settings['weightPerMeter'] === 'number'))
       ? settings['weightPerMeter'] : 0.062; // 62 g per meter of rope weight of typical climbing rope
+    const ropeModel = (settings.hasOwnProperty('ropeModel') && (typeof settings['ropeModel'] === 'string'))
+      ? settings['ropeModel'] : 'linear'; // default rope model: linear spring
     const bendDamping = (settings.hasOwnProperty('bendDamping') && (typeof settings['bendDamping'] === 'number'))
       ? settings['bendDamping'] : 0.02; // damping for oscillations orthogonal to the rope
     const stretchDamping = (settings.hasOwnProperty('stretchDamping') && (typeof settings['stretchDamping'] === 'number'))
@@ -109,6 +111,8 @@ class Rope {
     this.maxSegmentLength = this.segmentLength * 1.1;
     /** @type {number} default rope segment length in meters */
     this.defaultSegmentLength = this.segmentLength;
+    /** @type {'linear'|'sls'} the rope model which is used (linear spring or standard linear solid model) */
+    this.ropeModel = ropeModel;
     /** @type {number} damping coefficient for oscillations orthogonal to the rope, no direct physical background */
     this.dampingCoefficient = bendDamping; // damping for oscillations orthogonal to the rope
     /** @type {number} damping coefficient for internal friction, no direct physical background */
@@ -157,14 +161,14 @@ class Rope {
       this.ropeSegments.push(new RopeSegment(
         this.bodies[i-1], this.bodies[i], segmentMass,
         this.defaultSegmentLength, this.minSegmentLength, this.maxSegmentLength, this.defaultSegmentLength,
-        this.elasticityConstant, this.dampingCoefficient, this.internalDamping
+        this.elasticityConstant, this.ropeModel, this.dampingCoefficient, this.internalDamping
       ));
       this.ropeSegments[i-1].springStates = []; // clear default entry from springStates array
       for (const dp of dPoints) this.ropeSegments[i-1].deflectionPoints.push(dp); // insert deflection points
       for (let k = 0; k < dPointPos.length; k++) {
         const endA = (k == 0) ? this.bodies[i-1] : dPoints[k-1];
         const endB = (k == dPointPos.length - 1) ? this.bodies[i] : dPoints[k];
-        this.ropeSegments[i-1].springStates.push(new LinearSpring(endA, endB, dPointPos[k], this.elasticityConstant));
+        this.ropeSegments[i-1].springStates.push(this.ropeModel === 'linear' ? new LinearSpring(endA, endB, dPointPos[k], this.elasticityConstant) : linearSpringWithViscoelasticDamping(endA, endB, dPointPos[k], this.elasticityConstant));
       }
       for (const dp of dPointSpeed) this.ropeSegments[i-1].deflectionPointSlidingSpeeds.push(dp);
     }
@@ -291,6 +295,7 @@ class Rope {
     this.currentLength = 0;
     this.currentElasticEnergy = 0;
     let checkRestLen = 0;
+    let stretchingForceCalc = 0;
     for (let i = 0; i < this.ropeSegments.length; i++) {
       this.ropeSegments[i].applyRopeForces();
       this.currentLength += this.ropeSegments[i].currentLength;
@@ -298,9 +303,10 @@ class Rope {
       checkRestLen += this.ropeSegments[i].restLength;
       if (i == 0) this.maxBelayerForce = Math.max(this.maxBelayerForce, this.ropeSegments[i].currentStretchingForce);
       if (i == this.ropeSegments.length-1) this.maxClimberForce = Math.max(this.maxClimberForce, this.ropeSegments[i].currentStretchingForce);
+      stretchingForceCalc += this.ropeSegments[i].currentStretchingForce * this.ropeSegments[i].restLength;
     }
     this.currentClimberStretching = this.ropeSegments[this.ropeSegments.length-1].currentStretchingForce;
-    this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
+    this.currentStretchingForce = stretchingForceCalc / checkRestLen;
     this.maxStretchingForce = Math.max(this.currentStretchingForce, this.maxStretchingForce);
     this.maxRelativeElongation = Math.max(this.maxRelativeElongation, (this.currentLength - this.restLength) / this.restLength);
     if (Math.abs(checkRestLen - this.restLength) > PHYSICS_GLOBALS.EPS)
@@ -447,10 +453,11 @@ class RopeSegment {
    * @param {number} maxRLength the required maximal rest length of the (all) rope segment(s) in meters
    * @param {number} defaultRLength the default rest length of the (all) rope segment(s) in meters
    * @param {number} elasticityConstant the elasticity constant of the rope in 1/Newton
+   * @param {'linear'|'sls'} ropeModel the physical model used for this rope (linear spring or standard linear solid model)
    * @param {number} dampingCoefficient damping coefficient for oscillations orthogonal to the rope, no direct physical background
    * @param {number} internalDamping damping coefficient for internal friction, no direct physical background
    */
-  constructor(end1, end2, mass, restLength, minRLength, maxRLength, defaultRLength, elasticityConstant, dampingCoefficient, internalDamping) {
+  constructor(end1, end2, mass, restLength, minRLength, maxRLength, defaultRLength, elasticityConstant, ropeModel, dampingCoefficient, internalDamping) {
     /** @type {number} unique body id */
     this.id = PHYSICS_GLOBALS.idCounter;
     PHYSICS_GLOBALS.idCounter++;
@@ -472,6 +479,8 @@ class RopeSegment {
     this.defaultRestLength = defaultRLength;
     /** @type {number} the elasticity constant of the rope in 1/Newton */
     this.elasticityConstant = elasticityConstant;
+    /** @type {'linear'|'sls'} the physical model used for this rope (linear spring or standard linear solid model) */
+    this.ropeModel = ropeModel;
     /** @type {number} damping coefficient for oscillations orthogonal to the rope, no direct physical background */
     this.dampingCoefficient = dampingCoefficient;
     /** @type {number} damping coefficient for internal friction, no direct physical background */
@@ -488,7 +497,7 @@ class RopeSegment {
     /** @type {Body[]} the deflection points (carabiners) through which this rope segment passes (in the order from bodyA to bodyB) */
     this.deflectionPoints = []; // simulates that the rope passes through carabiners (order: from bodyA to bodyB)
     /** @type {Spring[]} specifies the spring states between the deflection points */
-    this.springStates = [new LinearSpring(this.bodyA, this.bodyB, this.restLength, this.elasticityConstant)]; // state of springs between bodyA or previous deflection point and indexed deflection point
+    this.springStates = [this.ropeModel === 'linear' ? new LinearSpring(this.bodyA, this.bodyB, this.restLength, this.elasticityConstant) : linearSpringWithViscoelasticDamping(this.bodyA, this.bodyB, this.restLength, this.elasticityConstant)]; // state of springs between bodyA or previous deflection point and indexed deflection point
       // plus state of spring between last deflection point and bodyB
       // thus, this.springStates.length = this.deflectionPoints.length + 1
     /** @type {number[]} the speed in m/s at which the rope slides through the deflection points */
@@ -535,6 +544,7 @@ class RopeSegment {
     let startDiff = null; let startDiffLen = 0; let startTension = 0; // first entry of tmpDiffArr, tmpLenArr, tmpTensionArr
     let endDiff = null; let endDiffLen = 0; let endTension = 0; // last entry of tmpDiffArr, tmpLenArr, tmpTensionArr
     let currentRestLength = 0; // temporary variable for calculating and checking the current rest length of the rope segment
+    let stretchingForceCalc = 0;
     for (let i = 1; i < deflPts.length; i++) {
       this.springStates[i-1].updateTension();
       const diff = this.springStates[i-1].diff; // vector pointing from one deflection point to the next
@@ -552,6 +562,7 @@ class RopeSegment {
       const tension = this.springStates[i-1].tension; // tension (= stretching force) within the segment between the two deflection points
       this.currentElasticEnergy += this.springStates[i-1].elasticEnergy; // stored elastic energy
       this.tmpTensionArr.push(tension);
+      stretchingForceCalc += tension * restLen;
       
       if (endDiff !== null) { // calculate angle between incoming and outgoing rope at deflection point (endDiff contains vector pointing from previous deflection point to current local bodyA)
         this.tmpAngleArr.push(
@@ -600,7 +611,7 @@ class RopeSegment {
     this.currentLength = len;
     if (Math.abs(this.restLength - currentRestLength) > PHYSICS_GLOBALS.EPS) console.warn(`rope segment with changing rest length: ${this.restLength} to ${currentRestLength}`);
     this.restLength = currentRestLength;
-    this.currentStretchingForce = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant); // update stretching force
+    this.currentStretchingForce = stretchingForceCalc / currentRestLength; // update stretching force: average over segment tension, weighted by rest length
 
     const directionA = startDiff.times(1 / startDiffLen);
     const directionB = endDiff.times(1 / endDiffLen);
@@ -644,6 +655,8 @@ class RopeSegment {
    * @param {boolean} [noTimeStepsForEnds=false] whether to exclude the rope (not rope segment!) end bodies from time stepping (useful if they are time-stepped separately)
    */
   timeStep(delta, clearForces = true, noTimeStepsForEnds = false) {
+    for (let i = 0; i < this.springStates.length; i++)
+      this.springStates[i].timeStep(delta);
     for (let i = 0; i < this.deflectionPoints.length; i++) {
       let tensionLeft = this.tmpTensionArr[i]; // read calculated tensions (see applyRopeForces()) to the left and to the right of the deflection point
       let tensionRight = this.tmpTensionArr[i+1];
@@ -677,10 +690,12 @@ class RopeSegment {
       if (this.previousSegment === null && this.bodyA.mass > 1.2 * this.mass && i == 0 && this.springStates[i].restLength < this.minRestLength / 2) {
         // undo changes
         this.springStates[i+1].shiftRestLengthTo(this.springStates[i], positionDelta);
+        this.deflectionPointSlidingSpeeds[i] = 0;
       // if no following segment, if the attached mass at the end is signficant (big object which cannot slip out), if the loop is at the last deflection point and if the rest length is too short
       } else if (this.followingSegment === null && this.bodyB.mass > 1.2 * this.mass && i == this.deflectionPoints.length-1 && this.springStates[i+1].restLength < this.minRestLength / 2) {
         // undo changes
         this.springStates[i+1].shiftRestLengthTo(this.springStates[i], positionDelta);
+        this.deflectionPointSlidingSpeeds[i] = 0;
       }
     }
 
@@ -811,8 +826,8 @@ class RopeSegment {
           this.bodyA = nBody; // this segment will have the new connecting body as bodyA
           const nRopeSeg = new RopeSegment(newBodyA, this.bodyA, newMass,
             this.defaultRestLength, this.minRestLength, this.maxRestLength,
-            this.defaultRestLength, this.elasticityConstant, this.dampingCoefficient,
-            this.internalDamping
+            this.defaultRestLength, this.elasticityConstant, this.ropeModel,
+            this.dampingCoefficient, this.internalDamping
           ); // create new rope segment (with default rest length)
           nRopeSeg.springStates = [this.springStates[0].splitOffSpring(this.defaultRestLength, nBody, 'start')];
           nRopeSeg.parentWorld = this.parentWorld; // copy parent world from this segment
@@ -838,8 +853,8 @@ class RopeSegment {
           this.bodyB = nBody; // this segment will have the new connecting body as bodyB
           const nRopeSeg = new RopeSegment(this.bodyB, newBodyB, newMass,
             this.defaultRestLength, this.minRestLength, this.maxRestLength,
-            this.defaultRestLength, this.elasticityConstant, this.dampingCoefficient,
-            this.internalDamping
+            this.defaultRestLength, this.elasticityConstant, this.ropeModel,
+            this.dampingCoefficient, this.internalDamping
           ); // create new rope segment (with default rest length)
           nRopeSeg.springStates = [this.springStates[this.deflectionPoints.length].splitOffSpring(this.defaultRestLength, nBody, 'end')];
           nRopeSeg.parentWorld = this.parentWorld; // copy parent world from this segment

@@ -449,6 +449,23 @@
               </td>
             </tr>
             <tr>
+              <td><label for="rope-model">Rope model:</label></td>
+              <td><select id="rope-model">
+                <option value="linear">Linear spring</option>
+                <option value="sls" selected>Standard linear solid model</option>
+              </select></td>
+            </tr>
+            <tr class="additional-input-info">
+              <td colspan="2" class="small-info">
+                <span class="info-icon material-symbols-outlined">info</span>
+                How to model the climbing rope. If modelled as a linear spring, the contracting spring force is proportional to
+                the spring's (i.e., rope's) extension. The standard linear solid (SLS) model (<a href="https://en.wikipedia.org/wiki/Standard_linear_solid_model">Wikipedia</a>)
+                adds viscous damping. In the current version, the SLS model parameters are set to reasonable values, given the
+                elasticity constant supplied above. In future versions, it is planned to add more fine-grained control over the
+                SLS model parameters.
+              </td>
+            </tr>
+            <tr>
               <td><label for="rope-bend-damping">Rope bend damping:</label></td>
               <td><input type="number" id="rope-bend-damping" min="0" max="2" value="0.02" step="0.001" /></td>
             </tr>
