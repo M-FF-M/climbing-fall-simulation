@@ -170,8 +170,9 @@ class ViscoelasticSpring extends Spring {
    * @param {number} elasticityConstant1 the elasticity constant of spring 1 in 1/Newton
    * @param {number} elasticityConstant2 the elasticity constant of spring 2 (in the Maxwell arm) in 1/Newton
    * @param {number} viscosity the material viscosity in the Maxwell arm in Newton * seconds
+   * @param {boolean} [hybridSpring=false] whether to use a hybrid rope model: linear up to maximum extension, SLS after that
    */
-  constructor(end1, end2, restLength, elasticityConstant1, elasticityConstant2, viscosity) {
+  constructor(end1, end2, restLength, elasticityConstant1, elasticityConstant2, viscosity, hybridSpring = false) {
     super(end1, end2, restLength);
     /** @type {number} the elasticity constant of spring 1 in 1/Newton */
     this.elasticityConstant = elasticityConstant1;
@@ -181,6 +182,16 @@ class ViscoelasticSpring extends Spring {
     this.viscosity = viscosity;
     /** @type {number} internal viscous extension of Maxwell arm in meters */
     this.viscExt = this.currentLength - this.restLength;
+    /** @type {number} maximal extension of the spring in meters */
+    this.maxExt = Math.max(this.currentLength - this.restLength, 0);
+    /** @type {boolean} whether to use the hybrid rope model: linear up to maximum extension, SLS after that */
+    this.useHybridModel = hybridSpring;
+    if (this.useHybridModel) {
+      /** @type {number} the elasticity constant of spring in the linear model phase in 1/Newton */
+      this.linearElasticityConst = (elasticityConstant1 * elasticityConstant2) / (elasticityConstant1 + elasticityConstant2);
+      /** @type {number} the weight of the linear model phase (1 at or above maximum extension, decreasing to 0 below that) */
+      this.hybridLinearWeight = 1;
+    }
     this.updateTension();
   }
 
@@ -189,26 +200,56 @@ class ViscoelasticSpring extends Spring {
    */
   updateTension() {
     super.updateTension();
+    const currentExtension = this.currentLength - this.restLength;
+    this.maxExt = Math.max(this.maxExt, currentExtension);
+    if (this.useHybridModel) {
+      // the hybrid model switches between the linear and the SLS model using a switching face over which the weight of the two models gradually shifts
+      const switchingPhase = 0.2; // length of the switching phase as a fraction of the maximal extension
+      const lowerSwitching = 1 - switchingPhase; // start of the switching phase as a fraction of the maximal extension
+      if (currentExtension >= this.maxExt - PHYSICS_GLOBALS.EPS) {
+        this.viscExt = currentExtension;
+        this.hybridLinearWeight = 1;
+      } else if (currentExtension < lowerSwitching * this.maxExt) {
+        this.hybridLinearWeight = 0;
+        // forget old maximum extension to a certain degree
+        this.maxExt = Math.min(this.maxExt, 1.05 * Math.max(currentExtension, 0) / lowerSwitching);
+      } else {
+        const linearWeight = (currentExtension - lowerSwitching * this.maxExt) / (switchingPhase * this.maxExt);
+        this.hybridLinearWeight = linearWeight * linearWeight * linearWeight;
+      }
+    }
     if (this.elasticityConstant2 == 0 && this.viscosity == 0 && this.elasticityConstant > 0) { // simple linear spring case
-      this.viscExt = this.currentLength - this.restLength; // not needed in this case
-      this.tension = (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
-      this.elasticEnergy = 0.5 * (this.currentLength - this.restLength) * (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
+      this.viscExt = currentExtension; // not needed in this case
+      this.tension = currentExtension / (this.restLength * this.elasticityConstant);
+      this.elasticEnergy = 0.5 * currentExtension * currentExtension / (this.restLength * this.elasticityConstant);
     } else if (this.elasticityConstant2 == 0 && this.viscosity > 0 && this.elasticityConstant > 0) { // Kelvin model (no spring in Maxwell arm)
-      this.viscExt = this.currentLength - this.restLength; // not needed in this case (it is equal to the actual extension)
+      this.viscExt = currentExtension; // not needed in this case (it is equal to the actual extension)
       const direction = this.diff.times(1 / this.currentLength);
       const lengthChangeRate = -this.bodyA.velocity.dot(direction) + this.bodyB.velocity.dot(direction);
       this.tension =
-        (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant)
+        currentExtension / (this.restLength * this.elasticityConstant)
         + this.viscosity / this.restLength * lengthChangeRate;
-      this.elasticEnergy = 0.5 * (this.currentLength - this.restLength) * (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant);
+      this.elasticEnergy = 0.5 * currentExtension * currentExtension / (this.restLength * this.elasticityConstant);
+      if (this.useHybridModel && this.hybridLinearWeight > 0) {
+        const linTension = currentExtension / (this.restLength * this.elasticityConstant);
+        const linEnergy = 0.5 * currentExtension * currentExtension / (this.restLength * this.elasticityConstant);
+        this.tension = this.hybridLinearWeight * linTension + (1 - this.hybridLinearWeight) * this.tension;
+        this.elasticEnergy = this.hybridLinearWeight * linEnergy + (1 - this.hybridLinearWeight) * this.elasticEnergy;
+      }
     } else { // full SLS model
-      const extensionOffset = this.currentLength - this.restLength - this.viscExt;
+      const extensionOffset = currentExtension - this.viscExt;
       this.tension =
-        (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant)
+        currentExtension / (this.restLength * this.elasticityConstant)
         + extensionOffset / (this.restLength * this.elasticityConstant2);
       this.elasticEnergy =
-        0.5 * (this.currentLength - this.restLength) * (this.currentLength - this.restLength) / (this.restLength * this.elasticityConstant)
+        0.5 * currentExtension * currentExtension / (this.restLength * this.elasticityConstant)
         + 0.5 * extensionOffset * extensionOffset / (this.restLength * this.elasticityConstant2);
+      if (this.useHybridModel && this.hybridLinearWeight > 0) {
+        const linTension = currentExtension / (this.restLength * this.linearElasticityConst);
+        const linEnergy = 0.5 * currentExtension * currentExtension / (this.restLength * this.linearElasticityConst);
+        this.tension = this.hybridLinearWeight * linTension + (1 - this.hybridLinearWeight) * this.tension;
+        this.elasticEnergy = this.hybridLinearWeight * linEnergy + (1 - this.hybridLinearWeight) * this.elasticEnergy;
+      }
     }
   }
 
@@ -237,10 +278,13 @@ class ViscoelasticSpring extends Spring {
       restLength = this.restLength;
     if (spring2 instanceof ViscoelasticSpring) {
       const viscExtShift = restLength / this.restLength * this.viscExt;
+      const maxExtShift = restLength / this.restLength * this.maxExt;
       this.restLength -= restLength;
       spring2.restLength += restLength;
       this.viscExt -= viscExtShift;
       spring2.viscExt += viscExtShift;
+      this.maxExt -= maxExtShift;
+      spring2.maxExt += maxExtShift;
     } else {
       throw new Error(`ViscoelasticSpring.shiftRestLengthTo(): parameter spring2's type is not supported`);
     }
@@ -274,12 +318,14 @@ class ViscoelasticSpring extends Spring {
     if (splitAt === 'start') {
       const newSpring = new ViscoelasticSpring(this.bodyA, connectingBody, 0, this.elasticityConstant, this.elasticityConstant2, this.viscosity);
       newSpring.viscExt = 0;
+      newSpring.maxExt = 0;
       this.shiftRestLengthTo(newSpring, restLength);
       this.bodyA = connectingBody;
       return newSpring;
     } else {
       const newSpring = new ViscoelasticSpring(connectingBody, this.bodyB, 0, this.elasticityConstant, this.elasticityConstant2, this.viscosity);
       newSpring.viscExt = 0;
+      newSpring.maxExt = 0;
       this.shiftRestLengthTo(newSpring, restLength);
       this.bodyB = connectingBody;
       return newSpring;
@@ -295,11 +341,12 @@ class ViscoelasticSpring extends Spring {
  * @param {number} elasticityConstant the elasticity constant of the spring in 1/Newton
  * @param {number} [p=0.75] fraction of the spring behavior corresponding to a simple linear spring. The remaining behavior is governed by the Maxwell arm.
  * @param {number} [t=0.1] target relaxation time (approximate time in which the internal viscous extension catches up with the actual extension)
+ * @param {boolean} [hybridModel=false] whether to use a hybrid rope model: linear up to maximum extension, SLS after that
  * @return {ViscoelasticSpring} a new viscoelastic spring somewhat similar in behavior to a LinearSpring with the given parameters
  */
-function linearSpringWithViscoelasticDamping(end1, end2, restLength, elasticityConstant, p = 0.6, t = 0.1) {
+function linearSpringWithViscoelasticDamping(end1, end2, restLength, elasticityConstant, p = 0.6, t = 0.1, hybridModel = false) {
   const elasticityConstant1 = elasticityConstant / p;
   const elasticityConstant2 = elasticityConstant / (1 - p)
   const viscosity = t * (1 - p) / elasticityConstant;
-  return new ViscoelasticSpring(end1, end2, restLength, elasticityConstant1, elasticityConstant2, viscosity);
+  return new ViscoelasticSpring(end1, end2, restLength, elasticityConstant1, elasticityConstant2, viscosity, hybridModel);
 }
