@@ -8,6 +8,8 @@ The webpage is still work in progress. You can check out the current version at 
 
 Copyright © 2026 Fabian Michel
 
+The CSV data in the measurements folder was provided by the [IFT Stuttgart](https://www.ift.uni-stuttgart.de/en/institute/departments/ropetechnology/).
+
 The entire code in this repository is licensed under the [MIT License](LICENSE.md).
 
 ## To-Do List
